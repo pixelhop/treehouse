@@ -1,0 +1,39 @@
+{
+  "name": "marketing",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "typecheck": "nuxt typecheck",
+    "postinstall": "pnpm exec nuxt prepare",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@nuxt/content": "^3.16.1",
+    "@nuxtjs/mdc": "^0.23.2",
+    "@nuxtjs/robots": "^6.2.4",
+    "@nuxtjs/sitemap": "^8.6.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "design": "workspace:*",
+    "fuse.js": "^7.5.0",
+    "nuxt": "^4.6.3",
+    "nuxt-ai-ready": "^1.8.0",
+    "posthog-js": "^1.438.7",
+    "shared": "workspace:^",
+    "tailwindcss": "^4.3.3",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "@iconify-json/solar": "^1.2.13",
+    "rolldown": "~1.2.13",
+    "shiki": "^4.5.0",
+    "typescript": "^6.0.3",
+    "unplugin-icons": "^24.0.0",
+    "vue-tsc": "^3.3.12",
+    "wrangler": "^4.149.0"
+  }
+}

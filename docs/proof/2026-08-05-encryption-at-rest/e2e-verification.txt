@@ -1,0 +1,57 @@
+Treehouse — encryption at rest, end-to-end verification
+server http://localhost:3457   blob store /tmp/th-e2e-blobs2
+
+workspace 76b3164d-e28a-4dc5-a16c-3c82e7dd3eab
+
+1. The object that landed in the blob store
+
+   $BLOB_DIR/76b3164d-e28a-4dc5-a16c-3c82e7dd3eab/95dcb6dc463627c394d63dea8ac3aa4b4d8f21e1594dc2d4fbe9dd5234d2c5cb
+
+   00000000  54 48 45 00 01 00 00 00 01 00 10 00 00 fc ce e2  |THE.............|
+   00000010  6b b2 dd 39 86 a7 12 d3 80 5b 3c 57 41 49 79 16  |k..9.....[<WAIy.|
+   00000020  14 13 9d ed 80 5f 20 ba 74 18 ee 8b 93 47 0e 1d  |....._ .t....G..|
+   00000030  cd 22 03 6e a8 1c e6 ea d4 07 31 73 24 f6 a0 a2  |.".n......1s$...|
+   00000040  25 1f ea 33 66 64 1e 41 46 f1 1e b6 5d f6 ec 98  |%..3fd.AF...]...|
+   00000050  d2 aa b0 9a 5f d1 d9 09 e6 23 6d 5d 35 62 8e b2  |...._....#m]5b..|
+   ... (102 bytes total)
+
+  PASS  stored bytes do not contain the plaintext
+  PASS  stored bytes carry the encryption format marker ("THE\0")
+  PASS  stored bytes are framed (header + sealed chunk)
+
+2. Reads still round-trip through the API
+
+   GET /files/secret.md -> 200
+   body: "PLAINTEXT-CANARY-swordfish-hunter2"
+  PASS  read returns 200
+  PASS  read returns the exact plaintext that was written
+
+3. A repeat view answers 304 without touching the blob store
+
+   ETag: "1"   Cache-Control: private, max-age=0, must-revalidate
+   GET with If-None-Match -> 304
+  PASS  matching validator returns 304
+  PASS  cached as private, not public
+
+4. A blob written before encryption still reads (no migration needed)
+
+   replaced the stored object with raw plaintext, then read it back
+   GET /files/legacy.md -> 200
+  PASS  legacy plaintext blob reads unchanged
+
+5. A tampered blob fails loudly rather than reading as missing or corrupt
+
+   flipped one bit in the stored object
+   GET /files/secret.md -> 500
+  PASS  tampering surfaces as a server error, not 200/404/502-as-missing
+  PASS  no plaintext leaks in the error response
+
+6. A blob carrying the marker but a broken header fails, rather than
+   handing the raw ciphertext back as file content
+
+   flipped the format-version byte (the magic marker still matches)
+   GET /files/marked.md -> 500
+  PASS  an unreadable header is an integrity failure, not a 200
+  PASS  no plaintext leaks
+
+RESULT: all checks passed

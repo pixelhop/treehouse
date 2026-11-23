@@ -1,0 +1,48 @@
+{
+  // Cloudflare Workers config for the Nuxt SPA.
+  // Build first (`pnpm build`), then `pnpm run deploy` (= `wrangler deploy`).
+  // Must match the Worker's name in Cloudflare: Workers Builds' branch builds
+  // (`wrangler versions upload`) fail when they disagree.
+  "name": "treehouse-app",
+  "compatibility_date": "2025-07-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": ".output/server/index.mjs",
+  "assets": {
+    "directory": ".output/public",
+    "binding": "ASSETS",
+  },
+  "observability": {
+    "enabled": true,
+  },
+  // Production hostname. Declared here so the custom domain (and its DNS record)
+  // is reconciled on every deploy rather than living only in the dashboard.
+  "routes": [{ "pattern": "app.trytree.house", "custom_domain": true }],
+  // The API origin is needed in BOTH places, and they MUST agree:
+  //   - at BUILD time, because the prerendered PWA shell (ssr: false, "/" is
+  //     prerendered so the service worker can precache it) freezes the value
+  //     and serves it for every navigation:
+  //       NUXT_PUBLIC_API_URL=https://api.trytree.house vp run app#build
+  //     On Cloudflare Workers Builds that is the BUILD variable (Settings →
+  //     Build → Variables), which is separate from the runtime var below.
+  //   - as a Worker var, because /.well-known/treehouse is a real server route
+  //     that reads it from runtime config to report this deployment's API origin
+  //     to the CLI and desktop shell.
+  // `vp run app#build` fails when the shell disagrees with this entry (see
+  // scripts/verify-pwa-build.mjs), and `vp run app#deploy` refuses to ship a
+  // build carrying the localhost default. When the API moves, change both.
+  "vars": {
+    "NUXT_PUBLIC_API_URL": "https://api.trytree.house",
+  },
+  // Staging, deployed from the `staging` branch with `CLOUDFLARE_ENV=staging`
+  // (wrangler and scripts/verify-pwa-build.mjs both read it). `name`, `routes`
+  // and `vars` are not inherited from the top level, so each is restated.
+  "env": {
+    "staging": {
+      "name": "treehouse-app-staging",
+      "routes": [{ "pattern": "staging-app.trytree.house", "custom_domain": true }],
+      "vars": {
+        "NUXT_PUBLIC_API_URL": "https://staging-api.trytree.house",
+      },
+    },
+  },
+}

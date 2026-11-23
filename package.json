@@ -1,0 +1,44 @@
+{
+  "name": "treehouse",
+  "version": "0.1.0",
+  "description": "Treehouse: a shared file workspace for people and their AI agents",
+  "keywords": [],
+  "license": "AGPL-3.0-only",
+  "author": "Pixelhop",
+  "scripts": {
+    "build": "pnpm -r run build",
+    "lint": "vp lint",
+    "typecheck": "vp run -r typecheck",
+    "test": "vp test",
+    "dev": "node scripts/dev-env.mjs dev",
+    "dev:db": "pnpm --filter db run db:up",
+    "dev:api": "node scripts/dev-env.mjs dev --only api",
+    "dev:app": "node scripts/dev-env.mjs dev --only app",
+    "dev:workers": "node scripts/dev-env.mjs dev --only workers",
+    "env:setup": "node scripts/dev-env.mjs setup",
+    "env:status": "node scripts/dev-env.mjs status",
+    "env:teardown": "node scripts/dev-env.mjs teardown",
+    "env:prune": "node scripts/dev-env.mjs prune",
+    "release:bump": "pnpm exec tsx scripts/bump-release-version.ts",
+    "release:bump:force-retag": "pnpm exec tsx scripts/bump-release-version.ts --force-tag",
+    "fallow:health": "fallow health --score --complexity --file-scores --report-only",
+    "fallow:dead-code": "fallow dead-code",
+    "fallow:audit": "fallow audit --base origin/main --gate new-only",
+    "fallow:production": "fallow health --production --score --complexity --file-scores --report-only",
+    "fallow:report": "fallow --format json",
+    "test:fallow": "vp test .github/scripts/fallow-summary.test.js",
+    "prepare": "vp config"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.10",
+    "@vue/test-utils": "^2.5.1",
+    "fallow": "3.32.0",
+    "happy-dom": "^20.14.6",
+    "tsx": "^4.23.15",
+    "vite-plus": "catalog:"
+  },
+  "engines": {
+    "pnpm": "11.28.2"
+  },
+  "packageManager": "pnpm@11.28.2"
+}

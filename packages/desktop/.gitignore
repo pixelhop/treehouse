@@ -1,0 +1,8 @@
+# electron-builder packaged output (dmg/zip/blockmap + updater manifests)
+release/
+# bundled SEA daemon staged for packaging (U10/U11)
+resources/
+# signing/notarization credentials are read from the environment — never commit them
+.env
+.env.*
+!.env.example

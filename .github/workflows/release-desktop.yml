@@ -1,0 +1,314 @@
+name: release-desktop
+
+# Builds the signed, notarized, stapled macOS desktop app (Apple-Silicon only) and
+# publishes it — plus electron-updater's latest-mac.yml — to the public R2 download
+# bucket under a `desktop/` prefix that mirrors the CLI's versioned/latest layout.
+#
+# Shape follows release-cli.yml: tag-triggered, minimal permissions, credential-gated
+# signing + R2 upload that still succeeds (unsigned, GitHub-only) when secrets are
+# absent. The bundled sync daemon is the existing darwin-arm64 SEA binary, staged
+# into the app's resources and code-signed as part of the app's mac.binaries pass.
+#
+# The arm64 app MUST build on an Apple-Silicon runner (macos-15). Signing reuses the
+# CLI pipeline's Apple secrets; the env-var NAMES differ because electron-builder
+# expects notarytool's (APPLE_APP_SPECIFIC_PASSWORD) and CSC_* signing vars.
+
+on:
+  push:
+    tags: ["desktop-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: build + publish (darwin-arm64)
+    runs-on: macos-15
+    env:
+      # Referenced in job env so steps can gate on them (`secrets` isn't usable in
+      # step `if:` conditions directly).
+      HAS_APPLE_CERT: ${{ secrets.APPLE_CERT_P12 != '' }}
+      # Alpha fallback signer. Used ONLY when there is no Developer ID cert, and
+      # solely to make auto-update possible: Squirrel.Mac validates an update
+      # against the running app's designated requirement, and an ad-hoc signature
+      # makes that a cdhash of the exact installed binary — so an ad-hoc build can
+      # never be updated. A self-signed cert anchors the requirement to the
+      # CERTIFICATE, which every later build signed with the same cert satisfies.
+      # It buys nothing with Gatekeeper (still un-notarized); see after-pack.cjs.
+      HAS_SELFSIGN_CERT: ${{ secrets.DESKTOP_SELFSIGN_P12 != '' }}
+      HAS_R2: ${{ secrets.R2_DL_ACCESS_KEY_ID != '' }}
+      # Public download host (R2 custom domain) — must match the invite page's
+      # DESKTOP_DOWNLOAD_URL and electron-builder.yml's publish.url.
+      DL_BASE_URL: https://dl.trytree.house
+      R2_BUCKET: treehouse-downloads
+      R2_ENDPOINT: https://8e74dde124932bd7ac4b7392b64e9323.r2.cloudflarestorage.com
+    steps:
+      # persist-credentials: false — this job holds `contents: write`, and the
+      # default checkout leaves that token in local git config where every later
+      # build step (including third-party tooling) could reuse it.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # No `version:` — pinned via packageManager in package.json (action-setup
+      # errors if both are given).
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      # Install only the desktop package + its workspace deps (cli...). Scoping keeps
+      # the build lean and avoids native builds from the api/app/workers packages.
+      - run: pnpm install --frozen-lockfile --filter desktop... --filter cli...
+
+      # Build the SEA daemon (the same darwin-arm64 `treehouse` binary the CLI ships)
+      # and stage it where electron-builder.yml's extraResources expects it. It is
+      # code-signed by electron-builder via mac.binaries — not pre-signed here.
+      - name: Build + stage the sync daemon
+        run: |
+          set -euo pipefail
+          pnpm --filter cli run package
+          mkdir -p packages/desktop/resources
+          cp packages/cli/dist/treehouse packages/desktop/resources/daemon
+
+      # Determine the version electron-builder will bake into latest-mac.yml (from
+      # packages/desktop/package.json) and assert a `desktop-v*` tag matches it, so a
+      # published latest-mac.yml can never advertise a version that disagrees with the
+      # tag (which would break auto-update).
+      - name: Resolve version
+        id: meta
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./packages/desktop/package.json').version")"
+          if [[ "${GITHUB_REF_NAME}" == desktop-v* ]]; then
+            TAG_VERSION="${GITHUB_REF_NAME#desktop-v}"
+            if [[ "$TAG_VERSION" != "$VERSION" ]]; then
+              echo "::error::tag ${GITHUB_REF_NAME} != package.json version ${VERSION} — bump package.json to match the tag."
+              exit 1
+            fi
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # Import the alpha self-signed certificate so after-pack.cjs can sign with it
+      # instead of ad-hoc. Skipped entirely once a Developer ID cert exists — that
+      # path is strictly better and electron-builder does the signing itself.
+      #
+      # The identity is referenced by SHA-1 rather than name because a self-signed
+      # cert has no trusted chain, so `security find-identity -v` (valid only)
+      # reports ZERO identities and only the un-filtered listing shows it. That is
+      # expected and does not affect signing — codesign needs the private key, not
+      # trust.
+      - name: Import self-signed certificate (alpha)
+        if: env.HAS_APPLE_CERT != 'true' && env.HAS_SELFSIGN_CERT == 'true'
+        env:
+          SELFSIGN_P12: ${{ secrets.DESKTOP_SELFSIGN_P12 }}
+          SELFSIGN_P12_PASSWORD: ${{ secrets.DESKTOP_SELFSIGN_P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/treehouse-selfsign.keychain"
+          # Ephemeral, runner-local password: this keychain exists for one job.
+          KEYCHAIN_PW="$(openssl rand -base64 24)"
+          echo "$SELFSIGN_P12" | base64 --decode > "$RUNNER_TEMP/selfsign.p12"
+
+          security create-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          # No auto-lock: a keychain that relocks mid-build fails the signing pass
+          # with a bare "User interaction is not allowed".
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/selfsign.p12" -k "$KEYCHAIN" \
+            -P "$SELFSIGN_P12_PASSWORD" -T /usr/bin/codesign
+          # Without this, codesign blocks on a GUI keychain-access prompt no one
+          # can answer on a runner.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PW" "$KEYCHAIN" >/dev/null
+          # codesign only searches keychains on the user search list.
+          security list-keychains -d user -s \
+            $(security list-keychains -d user | sed -e 's/^ *//' -e 's/"//g') "$KEYCHAIN"
+          rm -f "$RUNNER_TEMP/selfsign.p12"
+
+          IDENTITY="$(security find-identity -p codesigning "$KEYCHAIN" \
+            | awk '/\) [0-9A-F]{40} /{print $2; exit}')"
+          if [ -z "$IDENTITY" ]; then
+            echo "::error::self-signed certificate imported but no code-signing identity found in the keychain"
+            exit 1
+          fi
+          echo "TREEHOUSE_SELFSIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+          echo "imported alpha self-signed identity $IDENTITY"
+
+      # Build + sign + notarize + staple. electron-builder auto-skips signing when
+      # CSC_LINK is UNSET and notarization when APPLE_ID is empty, so an unsigned dev
+      # artifact still builds. `--publish never`: we upload to R2 out-of-band below
+      # (the generic provider is download-only).
+      - name: Build, sign, notarize (electron-builder)
+        env:
+          # Signing: electron-builder reads CSC_LINK (base64 .p12) + CSC_KEY_PASSWORD.
+          CSC_LINK: ${{ secrets.APPLE_CERT_P12 }}
+          CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+          # Notarization (notarytool): Apple ID + app-specific password + team id.
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # BAKED INTO THE BUNDLE by scripts/build.mjs (esbuild `define`) — this is the
+          # daemon-swap Team-ID gate (EXPECTED_TEAM_ID). Same value as the notarization
+          # APPLE_TEAM_ID. A CI env var alone does NOT reach the bundle without the
+          # define, which is exactly why the shipped app was refusing every daemon swap.
+          TREEHOUSE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # ALPHA: an unsigned build cannot satisfy the daemon Team-ID gate (an ad-hoc
+          # signature has no TeamIdentifier), so the shell would refuse to install its
+          # OWN bundled daemon and onboarding would dead-end permanently. Allow an
+          # ad-hoc daemon ONLY when there is no signing cert. Once APPLE_CERT_P12 is
+          # set this is "0", and the app ignores it regardless (see daemon.ts:
+          # acceptsDaemonSignature short-circuits on a baked Team ID).
+          TREEHOUSE_ALLOW_ADHOC_DAEMON: ${{ secrets.APPLE_CERT_P12 == '' && '1' || '0' }}
+          # PostHog for the shell. BAKED INTO THE BUNDLE by scripts/build.mjs, same
+          # as the Team ID and for the same reason — a Finder-launched app inherits
+          # no env vars, so this must be set on THIS step (where the bake runs), not
+          # merely exist as a repo secret. Absent → analytics silently inert, which
+          # is fine for a self-built shell and wrong for a release, hence the warning
+          # below. The host is left to the script's eu.i.posthog.com default.
+          TREEHOUSE_POSTHOG_KEY: ${{ secrets.TREEHOUSE_POSTHOG_KEY }}
+        run: |
+          set -euo pipefail
+          # A signed release with no Team ID would bake the UNSET_TEAM_ID placeholder
+          # and fail-close every daemon swap — fail loudly rather than ship that.
+          if [ "${HAS_APPLE_CERT}" = "true" ] && [ -z "${TREEHOUSE_TEAM_ID}" ]; then
+            echo "::error::signing is enabled but APPLE_TEAM_ID/TREEHOUSE_TEAM_ID is empty — the daemon Team-ID gate would be UNSET. Set APPLE_TEAM_ID."
+            exit 1
+          fi
+          # Not fatal: a fork or a dispatch build without the secret should still
+          # produce a working app. But a release that phones home about nothing is
+          # a thing you want to find out about now, not the next time you go looking
+          # for crash reports that were never sent.
+          if [ -z "${TREEHOUSE_POSTHOG_KEY:-}" ]; then
+            echo "::warning::TREEHOUSE_POSTHOG_KEY is empty — this build ships with analytics and error tracking OFF."
+          fi
+          # A GitHub secret that does not exist interpolates to the EMPTY STRING, not
+          # to nothing — so CSC_LINK arrives here *set but empty*. electron-builder
+          # reads that as a path to a certificate file, resolves it to the package
+          # dir and dies with "<pkg dir> not a file". Unsetting the empties (and
+          # disabling identity auto-discovery, which would otherwise pick a stale
+          # keychain cert) is what makes an unsigned build actually skip signing.
+          if [ -z "${CSC_LINK:-}" ]; then
+            unset CSC_LINK CSC_KEY_PASSWORD
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
+          pnpm --filter desktop run build
+          pnpm --filter desktop exec electron-builder --mac --publish never
+          echo "----- release/ -----"; ls -la packages/desktop/release
+          # Belt-and-braces: a signed build must not carry the placeholder.
+          if [ "${HAS_APPLE_CERT}" = "true" ] && grep -q "UNSET_TEAM_ID" packages/desktop/dist/main.cjs; then
+            echo "::error::packaged bundle still contains UNSET_TEAM_ID — the Team ID was not baked."
+            exit 1
+          fi
+
+      # A dispatch run publishes nothing (see the R2 gate below), so without this
+      # it produces no retrievable output at all. Keeps manual builds useful for
+      # testing the pipeline or handing someone a build to try.
+      #
+      # Skipped on tag runs: those publish the same files to R2 and the GitHub
+      # Release, so an artifact would only be a third copy, and the only one
+      # that counts against the Actions storage quota.
+      - name: Upload build artifacts
+        if: ${{ !startsWith(github.ref, 'refs/tags/desktop-v') }}
+        uses: actions/upload-artifact@v4
+        # NEVER fatal. This upload is a convenience — the release itself is the
+        # R2 publish below. When the artifact storage quota was hit, this step
+        # failed the job and `Upload to R2` was SKIPPED, so a fully built,
+        # signed and notarized app shipped nowhere. A storage problem must not
+        # be able to cancel a release.
+        continue-on-error: true
+        with:
+          name: treehouse-desktop-${{ steps.meta.outputs.version }}
+          path: |
+            packages/desktop/release/*.dmg
+            packages/desktop/release/*.zip
+            packages/desktop/release/latest-mac.yml
+          if-no-files-found: error
+          # Lowered from 14: at ~350 MB a build, three of these were most of the
+          # 2.17 GB that hit the artifact storage quota and failed the v0.1.8 /
+          # v0.1.2 release outright. A week is still long enough for the reason
+          # this upload exists — handing someone a dispatch build to try.
+          retention-days: 7
+
+      # Say which of the three signing states actually shipped. These are NOT
+      # interchangeable: ad-hoc and self-signed look identical to a user (both
+      # un-notarized, both need a Privacy & Security click) but only one of them
+      # can ever receive an auto-update, so a release note that just says
+      # "unsigned" hides the difference that matters most.
+      - name: Note signing state
+        if: env.HAS_APPLE_CERT != 'true'
+        run: |
+          if [ "${HAS_SELFSIGN_CERT}" = "true" ]; then
+            echo "::warning::No Developer ID — shipping a SELF-SIGNED, un-notarized app. Gatekeeper still blocks it on a clean Mac (clear once via Privacy & Security), but auto-update WILL work between builds signed with this same certificate. Set the Apple signing secrets for a properly distributable build."
+          else
+            echo "::warning::APPLE_CERT_P12 not set and no DESKTOP_SELFSIGN_P12 either — shipping an AD-HOC signed app. Gatekeeper will block it AND auto-update can never work (Squirrel.Mac cannot validate an update against a cdhash designated requirement). Set DESKTOP_SELFSIGN_P12 for an updatable alpha, or the Apple secrets for a real release."
+          fi
+
+      # ── Publish to the public R2 download bucket (the actual install + update source) ──
+      # Gated on a `desktop-v*` TAG (not just any dispatch) so a manual run on a feature
+      # branch can never overwrite the production `desktop/latest/` pointer.
+      - name: Upload to R2
+        if: env.HAS_R2 == 'true' && startsWith(github.ref, 'refs/tags/desktop-v')
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_DL_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_DL_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          # aws-cli v2 sends integrity checksums R2 rejects; only send when required.
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          AWS_MAX_ATTEMPTS: "10"
+          AWS_RETRY_MODE: standard
+        run: |
+          set -euo pipefail
+          cd packages/desktop/release
+          V="${{ steps.meta.outputs.version }}"
+          # Fail LOUDLY if a required artifact is missing (an artifactName drift or an
+          # electron-builder output change) rather than silently publishing zero files
+          # with a green run — the `|| continue` loop below would otherwise mask it.
+          # Blockmaps are optional (differential-update only), so they're not required.
+          for required in Treehouse-arm64.dmg Treehouse-arm64.zip latest-mac.yml; do
+            if [ ! -f "$required" ]; then
+              echo "::error::required artifact missing: $required (electron-builder output/name drift?)"
+              exit 1
+            fi
+          done
+          # Single PutObject for the large app payloads (avoid R2's multipart 504s).
+          aws configure set default.s3.multipart_threshold 1024MB
+          aws configure set default.s3.max_concurrent_requests 4
+          put() { # <file> <key> <cache-control>
+            aws s3 cp "$1" "s3://${R2_BUCKET}/$2" \
+              --endpoint-url "$R2_ENDPOINT" --cache-control "$3" --only-show-errors
+          }
+          # The dmg (human download), the zip (electron-updater payload), their
+          # blockmaps (differential update), and latest-mac.yml (the update manifest).
+          shopt -s nullglob
+          for f in Treehouse-arm64.dmg Treehouse-arm64.dmg.blockmap Treehouse-arm64.zip Treehouse-arm64.zip.blockmap latest-mac.yml; do
+            [ -f "$f" ] || continue
+            # Immutable versioned copy; short-cached latest/ pointer (electron-updater
+            # reads desktop/latest/latest-mac.yml — publish.url in electron-builder.yml).
+            put "$f" "desktop/v${V}/$f" "public, max-age=31536000, immutable"
+            put "$f" "desktop/latest/$f" "public, max-age=300"
+          done
+          echo "Uploaded desktop app to ${DL_BASE_URL}/desktop/latest/ and /desktop/v${V}/"
+
+      - name: Note R2 skipped
+        if: env.HAS_R2 != 'true'
+        run: echo "::warning::R2_DL_ACCESS_KEY_ID not set — skipping R2 upload. The app is only on the GitHub release and won't be publicly downloadable or auto-updatable."
+
+      # GitHub Release as a backup + authenticated-download path (private repo).
+      # Same tag gate as the R2 upload: a workflow_dispatch run from a branch must
+      # not create or overwrite a desktop-v<version> release with branch-built
+      # artifacts.
+      - name: GitHub Release
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: desktop-v${{ steps.meta.outputs.version }}
+          name: Treehouse desktop v${{ steps.meta.outputs.version }}
+          files: |
+            packages/desktop/release/Treehouse-arm64.dmg
+            packages/desktop/release/Treehouse-arm64.zip
+            packages/desktop/release/latest-mac.yml

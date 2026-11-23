@@ -1,0 +1,38 @@
+{
+  "name": "api",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "scripts": {
+    "build": "nitro build",
+    "dev": "nitro dev --port 3010",
+    "preview": "node .output/server/index.mjs",
+    "typecheck": "tsc --noEmit",
+    "auth:generate": "better-auth generate --config server/utils/auth.ts --output ../db/prisma/schema.prisma -y",
+    "postinstall": "nitro prepare",
+    "test:server": "node scripts/test-server-backed.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1149.0",
+    "@better-auth/api-key": "1.7.7",
+    "@better-auth/mcp": "1.7.7",
+    "@better-auth/oauth-provider": "1.7.7",
+    "@better-auth/stripe": "1.7.7",
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@sanity/diff-match-patch": "^3.2.1",
+    "better-auth": "^1.7.7",
+    "blob-io": "workspace:*",
+    "db": "workspace:*",
+    "posthog-node": "5.21.2",
+    "postmark": "^4.0.7",
+    "shared": "workspace:*",
+    "stripe": "^22.6.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "auth": "^1.7.7",
+    "dotenv": "^18.0.7",
+    "h3": "^1.15.11",
+    "nitropack": "^2.13.4",
+    "typescript": "^6.0.3"
+  }
+}

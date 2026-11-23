@@ -1,0 +1,58 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/v3.32.0/schema.json",
+  // Nuxt/Nitro/workspace discovery finds the entry points automatically. These
+  // globs cover files invoked by convention or runbooks rather than by source
+  // imports.
+  "entry": [
+    // Run by hand or by a workflow (`node scripts/…`, `tsx scripts/…`).
+    "scripts/**/*.{mjs,mts,ts}",
+    "packages/*/scripts/**/*.{cjs,mjs,mts,ts}",
+    // Bundled as its own esbuild entry by packages/desktop/scripts/build.mjs;
+    // it runs in the sandboxed renderer, so nothing imports it.
+    "packages/desktop/src/preload.ts",
+    // Test-only Workers the blob-worker runtime test starts by config path
+    // (`main` in an inline wrangler config), so nothing imports them.
+    "packages/blob-worker/test/runtime/*.{mjs,ts}",
+  ],
+  // `build/` is first-party source in the marketing site (build-time snippet
+  // highlighting imported by nuxt.config.ts), not build output.
+  "ignorePatterns": [".fallow/**", ".fallow-reports/**", "!packages/marketing/build/**"],
+  // Exact names only. These exceptions also suppress unlisted-dependency
+  // findings, so keep their manifest declarations and review before removal.
+  "ignoreDependencies": [
+    // Required peer of @pinia/nuxt, which is loaded as a Nuxt module by name.
+    "pinia",
+    // Required peer of Nuxt 4.6+. Vite+ bundles its own Rolldown, so Nuxt's
+    // import only resolves if the app declares it with autoInstallPeers off.
+    "rolldown",
+    // unplugin-icons' virtual module, and an icon set it reads from disk.
+    "~icons",
+    "@iconify-json/simple-icons",
+    // Spawned as the `posthog-cli` binary by packages/app/scripts/posthog-sourcemaps.ts.
+    "@posthog/cli",
+  ],
+  "health": {
+    "thresholdOverrides": [
+      {
+        // CRAP weighs complexity against test coverage, and test code is
+        // never itself covered by tests, so every branchy helper in a spec
+        // scores as untested. Cyclomatic and cognitive limits still apply.
+        "files": [
+          "**/*.spec.ts",
+          "**/*.test.ts",
+          "**/*.test.js",
+          "**/__mocks__/**",
+          "packages/*/test/**",
+        ],
+        "maxCrap": 1000000,
+        "reason": "CRAP is not meaningful for test code",
+      },
+    ],
+  },
+  "audit": {
+    // CI audits with `gate: all` against baselines saved from a fully
+    // installed base checkout (see the fallow job in ci.yml). This default
+    // only applies to local `pnpm fallow:audit` runs.
+    "gate": "new-only",
+  },
+}

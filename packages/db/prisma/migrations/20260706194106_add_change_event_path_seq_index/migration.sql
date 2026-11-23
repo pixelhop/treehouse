@@ -1,0 +1,11 @@
+-- CreateIndex
+-- CONCURRENTLY: `change_event` is an append-only feed with no pruning — every
+-- file write/delete/move inserts a row — so on an instance that has been running
+-- a while this table is big, and a plain index build would block every write for
+-- the duration. This must stay the ONLY statement in this migration: Prisma skips
+-- the wrapping transaction for a single-statement migration, and Postgres refuses
+-- CREATE INDEX CONCURRENTLY inside a transaction block.
+-- A failed build leaves an INVALID index behind. To recover: DROP INDEX
+-- "change_event_workspaceId_path_seq_idx", then `prisma migrate resolve
+-- --rolled-back 20260706194106_add_change_event_path_seq_index` before retrying.
+CREATE INDEX CONCURRENTLY "change_event_workspaceId_path_seq_idx" ON "change_event"("workspaceId", "path", "seq");

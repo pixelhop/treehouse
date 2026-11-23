@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" fill="none">
+  <!-- Leaf sprig motif — an arcing stem with five alternating leaves.
+       Accent for card corners, footers, list moments. -->
+  <defs>
+    <g id="sl">
+      <path d="M6.4 -16.8 C11.8 -10.8 10.6 -3.2 0 0 C-4.4 -5.8 -2.2 -14 6.4 -16.8 Z"/>
+    </g>
+  </defs>
+  <!-- Stem -->
+  <path d="M14 88 C20 62 36 34 76 14" stroke="#6BA368" stroke-width="3.6" stroke-linecap="round"/>
+  <!-- Leaves along the stem, alternating sides, shrinking toward the tip -->
+  <use href="#sl" fill="#2E7D58" transform="translate(22 64) rotate(-58) scale(1.35)"/>
+  <use href="#sl" fill="#6BA368" transform="translate(31 48) rotate(122) scale(1.2)"/>
+  <use href="#sl" fill="#2E7D58" transform="translate(43 35) rotate(-50) scale(1.1)"/>
+  <use href="#sl" fill="#A8C5A1" transform="translate(56 26) rotate(128) scale(0.95)"/>
+  <use href="#sl" fill="#6BA368" transform="translate(80 13) rotate(-38) scale(1.1)"/>
+</svg>

@@ -1,0 +1,103 @@
+# Packaging config for the Treehouse desktop app. v1 is macOS + Apple-Silicon only
+# (the bundled SEA daemon is darwin-arm64-only). U11 owns signing/notarization/
+# auto-update wiring; U10 wires the daemon into extraResources. This file exists
+# from U6 so the shell has a home for the security-relevant `protocols` entry.
+appId: io.treehouse.desktop
+productName: Treehouse
+copyright: Copyright © Pixelhop
+
+directories:
+  output: release
+  buildResources: build
+
+# Version-agnostic artifact names so the R2 `desktop/latest/` pointer always holds
+# `Treehouse-arm64.dmg` / `Treehouse-arm64.zip` (the invite page links the dmg by
+# that exact name — see packages/app/app/utils/desktopApp.ts DESKTOP_DOWNLOAD_URL).
+# electron-updater keys off the version INSIDE latest-mac.yml, not the filename, so
+# a stable name is safe and mirrors the CLI's versioned/latest dual-copy layout.
+artifactName: ${productName}-${arch}.${ext}
+
+# The main process is esbuild-bundled to dist/main.cjs; only that + package.json
+# ship (the renderer loads the remote SPA, so there is almost no local UI).
+#
+# `files` does NOT govern node_modules: electron-builder always bundles the app's
+# production `dependencies`. `cli` is therefore a devDependency even though the
+# shell is built entirely from it — esbuild inlines it, so the packaged bundle has
+# zero runtime `require("cli")`. As a production dependency it dragged the whole
+# package into app.asar, INCLUDING a second 106MB copy of the SEA daemon that is
+# never read (the app loads the one in extraResources below). That was 113MB of
+# asar and ~127MB of every single update download, for nothing. Moving it back to
+# `dependencies` silently reintroduces all of it: asar 0.7MB → 113MB.
+files:
+  - dist/**
+  - package.json
+
+# The SEA sync daemon (the existing darwin-arm64 `treehouse` binary) ships as an
+# extra resource. The release build stages it at packages/desktop/resources/daemon
+# before packaging; it is NOT committed. At runtime it lands at
+# Contents/Resources/daemon (process.resourcesPath + "/daemon") — the shell copies
+# it to the stable per-user path and manages it there (U10).
+extraResources:
+  - from: resources/daemon
+    to: daemon
+  # The AGPL text travels with every build, at Contents/Resources/LICENSE.
+  - from: ../../LICENSE
+    to: LICENSE
+
+# treehouse:// deep-link scheme (U9). electron-builder writes the CFBundleURLTypes
+# entry into Info.plist so macOS routes treehouse:// URLs to this app.
+protocols:
+  - name: Treehouse
+    schemes:
+      - treehouse
+
+# Ad-hoc signs the packaged .app when no Developer ID cert is present. Without a
+# bundle signature macOS refuses to launch the app as "damaged" — see the script.
+afterPack: scripts/after-pack.cjs
+
+mac:
+  category: public.app-category.productivity
+  # Composed from the brand illustration by scripts/make-icon.mjs and COMMITTED —
+  # that script needs ImageMagick, which the release runner doesn't install, so CI
+  # consumes the artifact rather than rebuilding it. Re-run the script (not CI) when
+  # the artwork changes. This is also electron-builder's default lookup path; it's
+  # explicit so a moved/renamed file fails the build instead of silently falling
+  # back to the stock Electron icon.
+  icon: build/icon.icns
+  # arm64 only (KTD): the SEA daemon has no darwin-x64 build; the invite page
+  # marks Intel Macs unsupported rather than dead-ending them post-install.
+  target:
+    - target: dmg
+      arch:
+        - arm64
+    # The zip target is what electron-updater consumes — dropping it silently
+    # breaks auto-update, so it ships alongside the dmg.
+    - target: zip
+      arch:
+        - arm64
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  # The bundled SEA daemon must be code-signed as a mac binary (hardened runtime +
+  # our entitlements) so Gatekeeper trusts it and the shell's Team-ID check passes.
+  # electron-builder signs listed binaries during the app signing pass.
+  binaries:
+    - Contents/Resources/daemon
+  # Developer-ID sign + notarize with notarytool. Signing reads CSC_LINK /
+  # CSC_KEY_PASSWORD; notarization reads APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD /
+  # APPLE_TEAM_ID — all supplied from the CLI pipeline's existing Apple secrets by
+  # .github/workflows/release-desktop.yml. electron-builder staples the ticket to
+  # the .app/.dmg (an upgrade over the CLI's bare-binary online ticket). When the
+  # signing env is absent (local/dev builds) electron-builder produces an unsigned
+  # app and skips notarization automatically.
+  notarize: true
+
+# Auto-update: electron-updater generic provider reading latest-mac.yml + the zip
+# from the R2 `desktop/latest/` pointer. The release workflow uploads there (and to
+# an immutable `desktop/v<version>/` copy). The dmg is the human download; the zip
+# is what the updater applies — both are published.
+publish:
+  provider: generic
+  url: https://dl.trytree.house/desktop/latest
+  channel: latest

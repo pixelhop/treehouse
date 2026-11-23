@@ -1,0 +1,100 @@
+# Runs the API suites that only mean anything against a live server.
+#
+# The unit suites (`vp test`) need nothing and run first. The server-backed ones
+# prove authorization boundaries — cookie-vs-API-key on public links, folder
+# links refusing to run scripts, workspace scoping — and they are written to
+# SKIP when no API answers, which reports the same green as a pass. So this job
+# starts a real API against a real Postgres and runs them under REQUIRE_SERVER,
+# where a missing server is a failure instead of a skip.
+name: API tests
+
+on:
+  pull_request:
+    paths:
+      - "packages/api/**"
+      - "packages/db/**"
+      - "packages/shared/**"
+      - ".github/workflows/api-tests.yml"
+  push:
+    branches: [main]
+
+jobs:
+  api:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: treehouse_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/treehouse_ci
+      # Test-only values. The API refuses to boot in production without a real
+      # SHARE_COOKIE_SECRET; here it only has to be stable across the two
+      # processes (the server, and the suites that mint sessions in-process).
+      BETTER_AUTH_SECRET: ci-secret-not-used-anywhere-else-0000000000
+      SHARE_COOKIE_SECRET: ci-share-secret-not-used-anywhere-else-000
+      BETTER_AUTH_URL: http://localhost:3010
+      APP_URL: http://localhost:3000
+      BLOB_DIR: .data/blobs
+      SMOKE_BASE: http://localhost:3010
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The suites read packages/api/.env through test/env.ts, and the server
+      # reads it too — one file keeps both halves on the same secret and database.
+      - name: Write the API env
+        run: |
+          {
+            echo "DATABASE_URL=\"$DATABASE_URL\""
+            echo "BETTER_AUTH_SECRET=\"$BETTER_AUTH_SECRET\""
+            echo "SHARE_COOKIE_SECRET=\"$SHARE_COOKIE_SECRET\""
+            echo "BETTER_AUTH_URL=\"$BETTER_AUTH_URL\""
+            echo "APP_URL=\"$APP_URL\""
+            echo "BLOB_DIR=\"$BLOB_DIR\""
+          } > packages/api/.env
+          cp packages/api/.env packages/db/.env
+
+      - run: pnpm --filter db run prisma:migrate:deploy
+
+      - name: Unit suites
+        run: pnpm --filter api exec vp test
+
+      - name: Start the API
+        run: |
+          pnpm --filter api dev > /tmp/api.log 2>&1 &
+          for i in $(seq 1 60); do
+            # Deadlined on purpose: a socket that accepts and never answers
+            # would otherwise hold this loop open for the whole job.
+            curl -sf --connect-timeout 5 --max-time 10 "$SMOKE_BASE/api/health" > /dev/null && exit 0
+            sleep 2
+          done
+          echo "API never became healthy:"; tail -50 /tmp/api.log; exit 1
+
+      # REQUIRE_SERVER is set by the runner, so a suite that would have skipped
+      # fails its import instead — and the runner re-checks health afterwards, so
+      # a server that dies mid-run cannot pass either.
+      - name: Server-backed suites
+        run: pnpm --filter api run test:server
+
+      - name: API log
+        if: failure()
+        run: tail -100 /tmp/api.log

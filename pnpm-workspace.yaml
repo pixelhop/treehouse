@@ -1,0 +1,65 @@
+packages:
+  - packages/*
+
+# --- Hoisting / peer behaviour (moved from .npmrc for pnpm 11) ---
+nodeLinker: hoisted
+shamefullyHoist: true
+publicHoistPattern:
+  - "*prisma*"
+strictPeerDependencies: false
+autoInstallPeers: false
+sharedWorkspaceLockfile: true
+
+# --- Supply-chain hardening (matches Chat Thing) ---
+# Wait three days before installing a newly published version. Strict mode is
+# off because some registry metadata omits publish times (pnpm/pnpm#9968);
+# those packages fall back to no age check instead of failing the install.
+minimumReleaseAge: 4320
+minimumReleaseAgeStrict: false
+
+# --- Trusted build scripts (replaces onlyBuiltDependencies) ---
+allowBuilds:
+  "@parcel/watcher": true
+  "@prisma/engines": true
+  # Downloads the Electron binary the desktop shell runs and packages.
+  electron: true
+  esbuild: true
+  # Optional native msgpack decoder used by BullMQ.
+  msgpackr-extract: true
+  prisma: true
+  # Cloudflare's local Workers runtime, used by `wrangler dev`/`wrangler deploy`.
+  workerd: true
+  # Denied: all were already skipped under pnpm 9. posthog-cli downloads its
+  # binary on first run, vue-demi already defaults to Vue 3, and core-js (via
+  # posthog-js) only prints a funding banner.
+  "@posthog/cli": false
+  core-js: false
+  vue-demi: false
+
+catalog:
+  vite: npm:@voidzero-dev/vite-plus-core@1.4.0
+  vitest: 5.0.5
+  vite-plus: 1.4.0
+
+# Vite+ ships its own Vite and Vitest builds; force every consumer onto them.
+overrides:
+  vite: "catalog:"
+  vitest: "catalog:"
+  # Security: undici advisories of Oct 14-15 2026 (CVE-2026-109383, -109829, -109869).
+  "undici@7": "^7.30.1"
+  "undici@8": "^8.12.2"
+  # Security: patched releases within each parent's existing range that
+  # `pnpm update` will not move to (pnpm audit, Nov 2026).
+  #   lodash <=4.17.23 (prototype pollution, _.template injection) via @prisma/studio-core > @visx
+  #   picomatch 4.0.0-4.0.3 (ReDoS, glob method injection) via @rollup/pluginutils
+  #   source-map-js <1.2.2 (event-loop DoS) via @prisma/config > c12 > magicast and @vue/compiler-core
+  "lodash@4": "^4.18.1"
+  "picomatch@4": "^4.0.4"
+  "source-map-js@1": "^1.2.2"
+peerDependencyRules:
+  allowAny:
+    - vite
+    - vitest
+  allowedVersions:
+    vite: "*"
+    vitest: "*"

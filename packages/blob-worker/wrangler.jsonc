@@ -1,0 +1,83 @@
+{
+  // The byte Worker: serves file bytes straight from R2 so they never leave
+  // Railway as egress. The API authorises every read and redirects here with an
+  // encrypted grant (see packages/api/server/utils/blob-worker.ts).
+  //
+  // NOT DEPLOYED YET. Deploy it following
+  // docs/solutions/developer-experience/blob-worker-byte-path.md.
+  // CI builds and dry-runs this config on every PR and never deploys it.
+  //
+  // The blob host is its own registrable domain, treehousefiles.com, so it is
+  // outside the app's cookie scope (see the doc's note on the domain). Each
+  // environment needs that zone in this Cloudflare account; `workers_dev:
+  // false` keeps it off *.workers.dev.
+  "name": "treehouse-blob-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-07-15",
+  // blob-io's crypto is node:crypto (createDecipheriv aes-256-gcm, hkdfSync,
+  // createHmac) and Buffer, all of which workerd provides under this flag.
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  // Every request URL here carries a grant, a bearer capability for one blob.
+  // Invocation logs and traces record the full URL, so both are OFF: anyone
+  // who can read the logs (or wherever they are shipped) could replay a grant
+  // until it expires. Only the Worker's own console output is kept, and that
+  // never includes a grant or a URL. Do not turn these back on, and do not add
+  // a Logpush job or tail consumer that records request URLs (see the doc).
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": false,
+    },
+    "traces": {
+      "enabled": false,
+    },
+  },
+  // Production. The bucket must be the one the production API's R2_BUCKET names:
+  // the Worker reads the exact objects the API writes.
+  "r2_buckets": [
+    {
+      "binding": "BLOBS",
+      "bucket_name": "treehouse-blobs",
+    },
+  ],
+  "vars": {
+    // Where to report bytes sent for public share links. The API's
+    // /api/internal/blob-usage route; unset or empty disables reporting.
+    "USAGE_REPORT_URL": "https://api.trytree.house/api/internal/blob-usage",
+  },
+  // Secrets (wrangler secret put, never in this file):
+  //   BLOB_WORKER_TOKEN_KEY          `<id>:<base64 32 bytes>`, identical to the API's
+  //   BLOB_WORKER_TOKEN_KEY_RETIRED  optional, comma-separated, for rotation
+  "routes": [{ "pattern": "treehousefiles.com", "custom_domain": true }],
+  "env": {
+    // `name`, `routes`, `r2_buckets` and `vars` are not inherited, so each is
+    // restated. So is `observability`, explicitly, so staging can never log
+    // grant URLs whatever wrangler's inheritance rules for it become.
+    "staging": {
+      "name": "treehouse-blob-worker-staging",
+      "workers_dev": false,
+      "routes": [{ "pattern": "staging.treehousefiles.com", "custom_domain": true }],
+      "observability": {
+        "enabled": true,
+        "logs": {
+          "enabled": true,
+          "invocation_logs": false,
+        },
+        "traces": {
+          "enabled": false,
+        },
+      },
+      "r2_buckets": [
+        {
+          "binding": "BLOBS",
+          "bucket_name": "treehouse-staging-blobs",
+        },
+      ],
+      "vars": {
+        "USAGE_REPORT_URL": "https://staging-api.trytree.house/api/internal/blob-usage",
+      },
+    },
+  },
+}

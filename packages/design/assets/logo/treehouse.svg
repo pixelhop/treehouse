@@ -1,0 +1,197 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1254 1254" fill="none">
+  <!-- The Treehouse logo — flat-vector recreation of the brand illustration.
+       Layers back-to-front: canopy (light → sunlit tops → mid → dark), twigs, side branches,
+       house, fence, platform, trunk, ladder, grass. Transparent background. -->
+
+  <!-- Canopy — back layer (light olive) -->
+  <g fill="#ADB158">
+    <circle cx="627" cy="330" r="185"/>
+    <circle cx="455" cy="365" r="160"/>
+    <circle cx="800" cy="365" r="160"/>
+    <circle cx="335" cy="505" r="135"/>
+    <circle cx="920" cy="505" r="135"/>
+    <circle cx="300" cy="625" r="105"/>
+    <circle cx="955" cy="625" r="105"/>
+  </g>
+
+  <!-- Canopy — sunlit tops -->
+  <g fill="#BCC066">
+    <circle cx="600" cy="285" r="120"/>
+    <circle cx="438" cy="325" r="92"/>
+    <circle cx="800" cy="322" r="88"/>
+    <circle cx="322" cy="470" r="70"/>
+    <circle cx="925" cy="468" r="66"/>
+  </g>
+
+  <!-- Canopy — mid layer -->
+  <g fill="#8E9C4C">
+    <circle cx="470" cy="490" r="140"/>
+    <circle cx="785" cy="490" r="140"/>
+    <circle cx="627" cy="440" r="150"/>
+    <circle cx="370" cy="620" r="110"/>
+    <circle cx="885" cy="620" r="110"/>
+  </g>
+
+  <!-- Canopy — dark center, behind the house -->
+  <g fill="#74894A">
+    <circle cx="430" cy="650" r="110"/>
+    <circle cx="825" cy="650" r="110"/>
+    <circle cx="560" cy="645" r="100"/>
+    <circle cx="700" cy="645" r="100"/>
+    <circle cx="350" cy="710" r="80"/>
+    <circle cx="905" cy="710" r="80"/>
+  </g>
+
+  <!-- Foliage behind the fence, so no background shows through above the deck -->
+  <rect x="380" y="690" width="494" height="104" fill="#74894A"/>
+  <g fill="#657B40">
+    <circle cx="455" cy="760" r="46"/>
+    <circle cx="800" cy="760" r="46"/>
+  </g>
+
+  <!-- Bare twigs poking up behind the roof -->
+  <g stroke="#7A5421" stroke-width="15" stroke-linecap="round">
+    <path d="M520 560 L474 408"/>
+    <path d="M492 470 L440 442"/>
+    <path d="M690 520 L735 408"/>
+    <path d="M716 456 L772 442"/>
+    <path d="M822 570 L878 478"/>
+  </g>
+
+  <!-- Side branches with forks -->
+  <g stroke="#7A5421" stroke-width="18" stroke-linecap="round">
+    <path d="M395 690 C355 678 320 665 290 652"/>
+    <path d="M330 668 L308 605"/>
+    <path d="M860 690 C900 678 935 665 965 652"/>
+    <path d="M925 668 L947 605"/>
+  </g>
+
+  <!-- House wall -->
+  <path d="M480 612 L627 505 L774 612 V790 H480 Z" fill="#E1AE5C"/>
+  <!-- Plank lines -->
+  <g stroke="#CE9C4E" stroke-width="5">
+    <path d="M515 587 V790"/>
+    <path d="M552 560 V790"/>
+    <path d="M589 533 V790"/>
+    <path d="M627 510 V790"/>
+    <path d="M664 533 V790"/>
+    <path d="M701 560 V790"/>
+    <path d="M738 587 V790"/>
+  </g>
+  <!-- Soft shadow the roof casts on the wall -->
+  <path d="M480 612 L627 505 L774 612 V648 L627 541 L480 648 Z" fill="#B98337" opacity="0.45"/>
+  <!-- Gable branch carving -->
+  <g stroke="#B5803B" stroke-width="7" stroke-linecap="round">
+    <path d="M627 540 V602"/>
+    <path d="M627 562 L602 534"/>
+    <path d="M627 562 L652 534"/>
+  </g>
+
+  <!-- Eave shadow under the roof -->
+  <g stroke="#624217" stroke-width="9" stroke-linecap="round">
+    <path d="M484 610 L627 506 L770 610"/>
+  </g>
+
+  <!-- Roof band -->
+  <g stroke="#BC8639" stroke-width="38" stroke-linecap="round">
+    <path d="M444 634 L627 500"/>
+    <path d="M627 500 L810 634"/>
+  </g>
+  <!-- Roof top darker edge -->
+  <g stroke="#A66C2C" stroke-width="12" stroke-linecap="round">
+    <path d="M450 624 L627 494 L804 624"/>
+  </g>
+
+  <!-- Door — arched top, square bottom -->
+  <path d="M530 792 L530 680 A40 40 0 0 1 610 680 L610 792 Z" fill="#C48A3B"/>
+  <path d="M538 792 L538 680 A32 32 0 0 1 602 680 L602 792 Z" fill="#885B22"/>
+  <circle cx="592" cy="715" r="7" fill="#EABF70"/>
+
+  <!-- Window -->
+  <rect x="666" y="625" width="80" height="80" rx="8" fill="#B5813B"/>
+  <rect x="673" y="632" width="66" height="66" rx="5" fill="#FFE7A3"/>
+  <g stroke="#B5813B" stroke-width="9">
+    <path d="M706 632 V698"/>
+    <path d="M673 665 H739"/>
+  </g>
+
+  <!-- Fence -->
+  <g fill="#CE9747">
+    <rect x="372" y="726" width="22" height="66" rx="10"/>
+    <rect x="438" y="726" width="22" height="66" rx="10"/>
+    <rect x="794" y="726" width="22" height="66" rx="10"/>
+    <rect x="860" y="726" width="22" height="66" rx="10"/>
+  </g>
+  <path d="M352 752 H486" stroke="#D49B49" stroke-width="14" stroke-linecap="round"/>
+  <path d="M768 752 H902" stroke="#D49B49" stroke-width="14" stroke-linecap="round"/>
+
+  <!-- Trunk arms reaching the platform -->
+  <g stroke="#7A5220" stroke-width="42" stroke-linecap="round">
+    <path d="M575 870 C500 848 440 832 404 826"/>
+    <path d="M680 870 C755 848 815 832 851 826"/>
+  </g>
+
+  <!-- Hanging support posts -->
+  <g fill="#78511E">
+    <rect x="380" y="820" width="26" height="62" rx="12"/>
+    <rect x="458" y="820" width="26" height="62" rx="12"/>
+    <rect x="770" y="820" width="26" height="62" rx="12"/>
+    <rect x="848" y="820" width="26" height="62" rx="12"/>
+  </g>
+
+  <!-- Platform -->
+  <rect x="340" y="788" width="574" height="38" rx="12" fill="#DCA44F"/>
+  <rect x="340" y="812" width="574" height="14" rx="7" fill="#BE8A3E"/>
+  <g stroke="#C9924A" stroke-width="4">
+    <path d="M404 790 V812"/>
+    <path d="M468 790 V812"/>
+    <path d="M532 790 V812"/>
+    <path d="M596 790 V812"/>
+    <path d="M660 790 V812"/>
+    <path d="M724 790 V812"/>
+    <path d="M788 790 V812"/>
+    <path d="M852 790 V812"/>
+  </g>
+
+  <!-- Grass mound -->
+  <ellipse cx="627" cy="1078" rx="210" ry="24" fill="#A8B560"/>
+  <g fill="#7E9C4C">
+    <circle cx="475" cy="1062" r="18"/>
+    <circle cx="515" cy="1074" r="14"/>
+    <circle cx="762" cy="1068" r="13"/>
+  </g>
+
+  <!-- Trunk -->
+  <path d="M552 822 C568 900 566 945 562 945 C554 1000 518 1048 484 1072 C536 1086 720 1086 772 1072 C740 1048 704 1000 696 945 C692 945 690 900 704 822 Z" fill="#7A5220"/>
+  <!-- Shadow of the deck on the trunk -->
+  <path d="M553 826 H703 C699 850 697 866 696 884 H560 C559 866 557 850 553 826 Z" fill="#5C3D10" opacity="0.55"/>
+  <!-- Lighter outer edges of the base flare -->
+  <g stroke="#8C5E28" stroke-width="16" stroke-linecap="round">
+    <path d="M558 952 C550 1000 520 1042 494 1064"/>
+    <path d="M698 952 C706 1000 736 1042 762 1064"/>
+  </g>
+  <!-- Darker crevices -->
+  <g stroke="#634312" stroke-width="13" stroke-linecap="round">
+    <path d="M608 868 C602 940 606 1000 592 1052"/>
+    <path d="M652 876 C658 945 652 1005 666 1052"/>
+  </g>
+
+  <!-- Ladder -->
+  <g stroke="#8F6128" stroke-width="14" stroke-linecap="round">
+    <path d="M746 776 L804 1076"/>
+    <path d="M802 776 L860 1076"/>
+  </g>
+  <g stroke="#C2924C" stroke-width="11" stroke-linecap="round">
+    <path d="M756 832 L813 832"/>
+    <path d="M766 882 L823 882"/>
+    <path d="M776 932 L833 932"/>
+    <path d="M786 982 L843 982"/>
+    <path d="M796 1032 L853 1032"/>
+  </g>
+
+  <!-- Grass clumps in front of the trunk base -->
+  <g fill="#8E9C4C">
+    <circle cx="568" cy="1082" r="13"/>
+    <circle cx="680" cy="1084" r="11"/>
+  </g>
+</svg>

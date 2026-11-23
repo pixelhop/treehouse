@@ -1,0 +1,552 @@
+@import "tailwindcss" source("../../..");
+@import "design/fonts.css";
+@import "design/tokens.css";
+
+/*
+ * Canonical Tailwind v4 mapping of the Treehouse design tokens
+ * (packages/design/src/tokens.css — spec at /design.md).
+ * Brand colors get raw utilities (bg-leaf, text-bark, …); day-to-day UI
+ * should prefer the semantic ones (bg-canvas, bg-surface, text-fg, …).
+ */
+@theme inline {
+  /* Brand palette */
+  --color-leaf: var(--brand-leaf);
+  --color-leaf-deep: var(--brand-leaf-deep);
+  --color-moss: var(--brand-moss);
+  --color-sage: var(--brand-sage);
+  --color-mist: var(--brand-mist);
+  --color-cream: var(--brand-cream);
+  --color-parchment: var(--brand-parchment);
+  --color-wood: var(--brand-wood);
+  --color-bark: var(--brand-bark);
+  --color-charcoal: var(--brand-charcoal);
+  --color-sky: var(--brand-sky);
+  --color-sky-deep: var(--brand-sky-deep);
+
+  /* Semantic */
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-fg: var(--primary-fg);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-agent: var(--agent);
+  --color-human: var(--human);
+
+  /* Type */
+  --font-display: var(--font-display);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  /* Elevation */
+  --shadow-sm: 0 1px 2px rgba(43, 47, 51, 0.06);
+  --shadow-md: 0 4px 16px rgba(43, 47, 51, 0.08);
+  --shadow-lg: 0 12px 40px rgba(43, 47, 51, 0.1);
+  --shadow-ring-leaf: 0 0 0 4px rgba(46, 125, 88, 0.18);
+
+  /* Motion */
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /*
+   * Product-demo palette. The home page renders the real app's chrome, so it
+   * needs the real app's runtime theme variables — but this stylesheet already
+   * owns `surface`, `fg` and `border`, so they are namespaced `th-`
+   * (bg-th-surface, text-th-fg-muted, bg-th-accent/10, …). Values arrive from
+   * the [data-demo-theme] blocks below rather than from here, which is what
+   * lets one subtree carry a whole different palette.
+   */
+  --color-th-app: var(--th-app);
+  --color-th-surface: var(--th-surface);
+  --color-th-surface-2: var(--th-surface-2);
+  --color-th-border: var(--th-border);
+  --color-th-fg: var(--th-fg);
+  --color-th-fg-muted: var(--th-fg-muted);
+  --color-th-fg-subtle: var(--th-fg-subtle);
+  --color-th-accent: var(--th-accent);
+  --color-th-accent-fg: var(--th-accent-fg);
+  --color-th-warning: var(--th-warning);
+  --color-th-agent: var(--th-agent);
+  --color-th-human: var(--th-human);
+}
+
+/*
+ * The app's seven built-in themes, verbatim from
+ * packages/app/app/assets/css/tailwind.css and keyed the same way — the only
+ * change is the [data-demo-theme] selector, so the palette can live on one
+ * subtree instead of the document. THEME_PRESETS in the app's useTheme.ts is
+ * the matching list.
+ *
+ * Keep these in step with the app. A drift here turns the product shot into a
+ * picture of software that does not exist.
+ */
+[data-demo-theme="light"] {
+  --th-app: #fafafa;
+  --th-surface: #ffffff;
+  --th-surface-2: #f5f5f5;
+  --th-border: #e5e5e5;
+  --th-fg: #171717;
+  --th-fg-muted: #737373;
+  --th-fg-subtle: #a3a3a3;
+  --th-accent: #2563eb;
+  --th-accent-fg: #ffffff;
+  --th-warning: #d97706;
+  --th-agent: #7c3aed;
+  --th-human: #059669;
+}
+
+[data-demo-theme="dark"] {
+  --th-app: #0a0a0a;
+  --th-surface: #171717;
+  --th-surface-2: #262626;
+  --th-border: #2e2e2e;
+  --th-fg: #fafafa;
+  --th-fg-muted: #a3a3a3;
+  --th-fg-subtle: #6b7280;
+  --th-accent: #3b82f6;
+  --th-accent-fg: #ffffff;
+  --th-warning: #fbbf24;
+  --th-agent: #a78bfa;
+  --th-human: #34d399;
+}
+
+[data-demo-theme="dracula"] {
+  --th-app: #282a36;
+  --th-surface: #2f3140;
+  --th-surface-2: #44475a;
+  --th-border: #44475a;
+  --th-fg: #f8f8f2;
+  --th-fg-muted: #b9bdd4;
+  --th-fg-subtle: #6272a4;
+  --th-accent: #bd93f9;
+  --th-accent-fg: #282a36;
+  --th-warning: #f1fa8c;
+  --th-agent: #bd93f9;
+  --th-human: #50fa7b;
+}
+
+[data-demo-theme="nord"] {
+  --th-app: #2e3440;
+  --th-surface: #3b4252;
+  --th-surface-2: #434c5e;
+  --th-border: #4c566a;
+  --th-fg: #eceff4;
+  --th-fg-muted: #d8dee9;
+  --th-fg-subtle: #7b88a1;
+  --th-accent: #88c0d0;
+  --th-accent-fg: #2e3440;
+  --th-warning: #ebcb8b;
+  --th-agent: #b48ead;
+  --th-human: #a3be8c;
+}
+
+[data-demo-theme="solarized-light"] {
+  --th-app: #fdf6e3;
+  --th-surface: #fbf6e9;
+  --th-surface-2: #eee8d5;
+  --th-border: #e3dcc6;
+  --th-fg: #073642;
+  --th-fg-muted: #586e75;
+  --th-fg-subtle: #93a1a1;
+  --th-accent: #268bd2;
+  --th-accent-fg: #fdf6e3;
+  --th-warning: #b58900;
+  --th-agent: #6c71c4;
+  --th-human: #2aa198;
+}
+
+[data-demo-theme="rose-pine"] {
+  --th-app: #191724;
+  --th-surface: #1f1d2e;
+  --th-surface-2: #26233a;
+  --th-border: #403d52;
+  --th-fg: #e0def4;
+  --th-fg-muted: #908caa;
+  --th-fg-subtle: #6e6a86;
+  --th-accent: #c4a7e7;
+  --th-accent-fg: #191724;
+  --th-warning: #f6c177;
+  --th-agent: #c4a7e7;
+  --th-human: #9ccfd8;
+}
+
+[data-demo-theme="treehouse"] {
+  --th-app: #f7f4ed;
+  --th-surface: #ffffff;
+  --th-surface-2: #eef2e8;
+  --th-border: #e3e6d8;
+  --th-fg: #23372b;
+  --th-fg-muted: #475569;
+  --th-fg-subtle: #8a988c;
+  --th-accent: #2e7d5b;
+  --th-accent-fg: #ffffff;
+  --th-warning: #c39a6b;
+  --th-agent: #4f7cff;
+  --th-human: #5e9e5a;
+}
+
+@layer base {
+  html,
+  body,
+  #__nuxt {
+    @apply min-h-screen bg-canvas text-fg;
+  }
+
+  body {
+    @apply antialiased;
+  }
+
+  /*
+   * One keyboard-focus treatment for the whole site. design.md specifies a leaf
+   * focus ring, but nothing was using it, so focus fell back to the browser
+   * default. outline (rather than a box-shadow ring) follows each element's own
+   * border-radius and can't be clipped by an ancestor's overflow.
+   */
+  :where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 3px;
+  }
+}
+
+/*
+ * The footer scene emerges from the canvas rather than starting at an edge: a
+ * long dissolve across the top means there is no horizontal seam where the
+ * image begins, only cream gradually becoming landscape.
+ *
+ * The fade length is absolute, not a percentage, because the element now spans
+ * the whole footer rather than just the artwork. A percentage would stretch the
+ * dissolve with the footer's content and drag it down over the meadow.
+ * These values are 42% of the artwork's height at each breakpoint — where the
+ * fade used to land back when the two were the same box.
+ */
+.footer-scene {
+  --footer-fade: 9.25rem;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black var(--footer-fade),
+    black 100%
+  );
+  mask-image: linear-gradient(to bottom, transparent 0, black var(--footer-fade), black 100%);
+}
+
+@media (min-width: 640px) {
+  .footer-scene {
+    --footer-fade: 10.9rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .footer-scene {
+    --footer-fade: 12.6rem;
+  }
+}
+
+/*
+ * Fluid display scale.
+ *
+ * design.md pins display at 88px and headline-xl/lg at 56/40, which are the
+ * endpoints rather than a ramp — stepping between them at a single breakpoint
+ * left headlines undersized through the middle of the viewport range. These
+ * interpolate continuously between the spec's sizes instead. Tracking follows
+ * design.md (-0.015em display, -0.01em headline) rather than Tailwind's
+ * tracking-tight, which was overshooting at -0.025em.
+ */
+.type-display {
+  font-size: clamp(2.75rem, 1.6rem + 3.4vw, 4.5rem);
+  line-height: 1.03;
+  letter-spacing: -0.015em;
+}
+
+/* The homepage hero headline: set tighter and a touch lighter than other display
+ * type, in charcoal, with the closing phrase picked out in green italic. */
+.hero-title {
+  font-weight: 560;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.hero-title em {
+  font-weight: 500;
+  color: var(--brand-leaf);
+}
+
+.type-headline {
+  font-size: clamp(2rem, 1.35rem + 1.9vw, 3rem);
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+}
+
+.type-headline-sm {
+  font-size: clamp(1.75rem, 1.3rem + 1.3vw, 2.5rem);
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+}
+
+/*
+ * Interactive lift. Hover raises the surface a couple of pixels and deepens its
+ * shadow — enough to feel responsive, not enough to bounce. transform and
+ * box-shadow only, so it stays off the layout path.
+ */
+.lift {
+  transition:
+    translate var(--duration-fast) var(--ease-out-soft),
+    box-shadow var(--duration-fast) var(--ease-out-soft),
+    background-color var(--duration-fast) var(--ease-out-soft),
+    border-color var(--duration-fast) var(--ease-out-soft),
+    color var(--duration-fast) var(--ease-out-soft);
+}
+
+.lift:hover {
+  translate: 0 -2px;
+}
+
+.lift-card {
+  transition:
+    translate var(--duration-base) var(--ease-out-soft),
+    box-shadow var(--duration-base) var(--ease-out-soft),
+    border-color var(--duration-base) var(--ease-out-soft);
+}
+
+.lift-card:hover {
+  translate: 0 -3px;
+  border-color: var(--brand-sage);
+  box-shadow: var(--shadow-md);
+}
+
+/* grow-in — organic entrance for cards and sprout moments */
+@keyframes grow-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.grow-in {
+  transform-origin: bottom center;
+  animation: grow-in var(--duration-grow) var(--ease-out-soft) both;
+}
+
+/* sway — idle foliage only, never UI */
+@keyframes sway {
+  0%,
+  100% {
+    transform: rotate(-2deg);
+  }
+  50% {
+    transform: rotate(2deg);
+  }
+}
+
+.sway {
+  transform-origin: bottom center;
+  animation: sway 5s var(--ease-in-out-soft) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lift:hover,
+  .lift-card:hover {
+    translate: none;
+  }
+
+  .grow-in,
+  .sway {
+    animation: none;
+  }
+}
+/*
+ * Docs prose (/docs). Hand-rolled rather than @tailwindcss/typography so every
+ * value comes from the design tokens: charcoal on cream, leaf links, Nunito
+ * headings (Fraunces is reserved for the 40px page title, per design.md), and
+ * the charcoal code panel from the homepage. Components that bring their own
+ * styling (callouts, code blocks, screenshots, quick links) opt out with
+ * `not-prose`.
+ */
+.docs-prose {
+  color: var(--fg);
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+.docs-prose > :first-child {
+  margin-top: 0;
+}
+
+.docs-prose :where(p, ul, ol, table, blockquote):not(:where(.not-prose, .not-prose *)) {
+  margin-block: 1.1em;
+}
+
+.docs-prose :where(h2, h3, h4):not(:where(.not-prose, .not-prose *)) {
+  color: var(--fg);
+  font-weight: 700;
+  scroll-margin-top: 6rem;
+}
+
+.docs-prose h2:not(:where(.not-prose, .not-prose *)) {
+  margin-top: 2.4em;
+  margin-bottom: 0.7em;
+  font-size: 1.5rem;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+}
+
+.docs-prose h3:not(:where(.not-prose, .not-prose *)) {
+  margin-top: 1.9em;
+  margin-bottom: 0.5em;
+  font-size: 1.1875rem;
+  line-height: 1.4;
+}
+
+.docs-prose h4:not(:where(.not-prose, .not-prose *)) {
+  margin-top: 1.6em;
+  margin-bottom: 0.4em;
+  font-size: 1rem;
+}
+
+/* Heading anchors: the heading is the link; keep it looking like a heading. */
+.docs-prose :where(h2, h3, h4) a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.docs-prose a:not(:where(.not-prose, .not-prose *, h2 a, h3 a, h4 a)) {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--duration-fast) var(--ease-out-soft);
+}
+
+.docs-prose a:not(:where(.not-prose, .not-prose *, h2 a, h3 a, h4 a)):hover {
+  text-decoration-color: var(--primary);
+}
+
+.docs-prose strong {
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.docs-prose :where(ul, ol):not(:where(.not-prose, .not-prose *)) {
+  padding-left: 1.4em;
+}
+
+.docs-prose ul:not(:where(.not-prose, .not-prose *)) {
+  list-style: disc;
+}
+
+.docs-prose ol:not(:where(.not-prose, .not-prose *)) {
+  list-style: decimal;
+}
+
+.docs-prose li:not(:where(.not-prose, .not-prose *)) {
+  margin-block: 0.4em;
+  padding-left: 0.25em;
+}
+
+.docs-prose li::marker {
+  color: var(--fg-subtle);
+  font-weight: 600;
+}
+
+.docs-prose ol > li::marker {
+  color: var(--leaf-deep, var(--brand-leaf-deep));
+}
+
+.docs-prose li > :where(ul, ol) {
+  margin-block: 0.4em;
+}
+
+.docs-prose :not(pre) > code {
+  padding: 0.12em 0.4em;
+  border-radius: 6px;
+  background: var(--brand-parchment);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.docs-prose blockquote:not(:where(.not-prose, .not-prose *)) {
+  padding-left: 1em;
+  border-left: 3px solid var(--brand-sage);
+  color: var(--fg-muted);
+}
+
+.docs-prose hr {
+  margin-block: 2.5em;
+  border-color: var(--border);
+}
+
+.docs-prose table:not(:where(.not-prose, .not-prose *)) {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+.docs-prose :where(th, td):not(:where(.not-prose, .not-prose *)) {
+  padding: 0.6em 0.9em;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.docs-prose th:not(:where(.not-prose, .not-prose *)) {
+  background: var(--brand-parchment);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.docs-prose tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Code panels (ProsePre). Shiki inlines its own background, so clear it. */
+.docs-pre {
+  overflow-x: auto;
+  padding: 0.9rem 1.1rem;
+  background: transparent !important;
+  color: var(--brand-parchment);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+
+.docs-pre code {
+  font-family: inherit;
+}
+
+/* Callout bodies are prose, a size down, with tighter rhythm. */
+.callout-body > :first-child {
+  margin-top: 0;
+}
+
+.callout-body > :last-child {
+  margin-bottom: 0;
+}
+
+.callout-body :where(p, ul, ol) {
+  margin-block: 0.6em;
+}

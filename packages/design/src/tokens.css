@@ -1,0 +1,145 @@
+/*
+ * Treehouse design tokens — single source of truth.
+ *
+ * Two layers:
+ *   1. Brand palette    — raw colors lifted from the brand sheet. Stable.
+ *   2. Semantic palette — role-based vars consumed by the apps.
+ *
+ * Consumers on Tailwind v4 map these into utilities via `@theme inline`
+ * (see packages/marketing/app/assets/css/main.css for the canonical mapping).
+ *
+ * Values mirror the YAML frontmatter at the top of /design.md.
+ * Keep them in sync — design.md is the spec, this file is the implementation.
+ */
+
+:root {
+  /* ---------- Brand palette (raw hex, do not redefine) ---------- */
+  --brand-leaf: #2e7d58; /* primary — the leaf in the house */
+  --brand-leaf-deep: #235f44; /* hover/active leaf */
+  --brand-moss: #6ba368; /* secondary green — growth, success */
+  --brand-sage: #a8c5a1; /* soft green — decorative foliage */
+  --brand-mist: #dde8d9; /* sage tint — chips, soft fills */
+  --brand-cream: #f7f4ec; /* the canvas */
+  --brand-parchment: #efe9dc; /* tonal section background */
+  --brand-wood: #c89a5b; /* warm accent — planks, ladders */
+  --brand-bark: #8a6b47; /* deep wood — wood-tint foregrounds */
+  --brand-charcoal: #2b2f33; /* foreground; never pure black */
+  --brand-sky: #d6e6f7; /* airy accent — backgrounds behind canopy */
+  --brand-sky-deep: #5b8dd9; /* informational / agent accent */
+  --brand-white: #ffffff;
+
+  /* ---------- Semantic palette ---------- */
+  --canvas: var(--brand-cream); /* page background */
+  --surface: var(--brand-white); /* cards, panels */
+  --surface-2: var(--brand-parchment); /* tonal sections, wells */
+  --border: #e5e0d2; /* hairlines on cream + white */
+  --fg: var(--brand-charcoal);
+  --fg-muted: #5d6358;
+  --fg-subtle: #8e9387;
+  --primary: var(--brand-leaf);
+  --primary-hover: var(--brand-leaf-deep);
+  --primary-fg: var(--brand-white);
+  --success: #3e8e5e;
+  --warning: #b8862e;
+  --danger: #c0473a;
+  --agent: var(--brand-sky-deep); /* agent-attributed activity */
+  --human: var(--brand-moss); /* human-attributed activity */
+
+  /* ---------- Radius — soft, hand-built ---------- */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* ---------- Spacing scale (4px base) ---------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+
+  /* ---------- Elevation — warm shadows, charcoal-tinted ---------- */
+  --shadow-sm: 0 1px 2px rgba(43, 47, 51, 0.06);
+  --shadow-md: 0 4px 16px rgba(43, 47, 51, 0.08);
+  --shadow-lg: 0 12px 40px rgba(43, 47, 51, 0.1);
+  --shadow-ring-leaf: 0 0 0 4px rgba(46, 125, 88, 0.18);
+
+  /* ---------- Motion — gentle, organic ---------- */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
+  --duration-fast: 140ms;
+  --duration-base: 220ms;
+  --duration-slow: 360ms;
+  --duration-grow: 600ms; /* sprout/grow reveals */
+
+  /* ---------- Type families ---------- */
+  --font-display: "Fraunces", "Iowan Old Style", Georgia, "Times New Roman", serif;
+  --font-sans:
+    "Nunito Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ---------- Base typographic defaults ---------- */
+html {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  /* Fraunces' SOFT axis rounds the serif ends, echoing the logo's round canopy. */
+  font-variation-settings: "SOFT" 100;
+  letter-spacing: -0.01em;
+}
+
+/* The Treehouse wordmark: soft Fraunces, pinned to the display cut so it keeps
+ * its contrast at nav-bar sizes, a touch heavier and tighter than headlines. */
+.wordmark {
+  font-family: var(--font-display);
+  font-variation-settings:
+    "opsz" 144,
+    "SOFT" 100;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+/*
+ * Eyebrow label — small caps sans, tracked out, muted.
+ *
+ * NOTE: this file is unlayered, so `color` here outranks Tailwind's layered
+ * text-* utilities however specific they are. An eyebrow that needs a different
+ * tint (on a dark panel, say) has to set it with `label-eyebrow-on-dark` or its
+ * own declaration — `class="label-eyebrow text-cream"` will not take.
+ */
+.label-eyebrow {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--fg-muted);
+}
+
+/* The same label on a dark surface. Unlayered too, so it wins on source order. */
+.label-eyebrow-on-dark {
+  color: var(--brand-sage);
+}
+
+/* Leaf dot — small decorative status marker next to labels */
+.leaf-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px 9999px 9999px 1px; /* a tiny leaf, not a circle */
+  transform: rotate(45deg);
+  background: var(--brand-leaf);
+}

@@ -1,0 +1,232 @@
+# Builds and deploys the Cloudflare Workers: the web app (app.trytree.house),
+# the marketing site + docs (trytree.house) and the byte Worker
+# (treehousefiles.com, packages/blob-worker). The byte Worker's secret
+# (BLOB_WORKER_TOKEN_KEY) is set once by hand and survives deploys; see
+# docs/solutions/developer-experience/blob-worker-byte-path.md.
+#
+# This replaced Cloudflare's git integration (Workers Builds). There, the build
+# commands, branch rules and build variables lived only in the Cloudflare
+# dashboard, and so did the logs. GitHub showed a bare "fail", and nobody could
+# see why without dashboard access. Every PR branch failed `treehouse-app` from a
+# branch-build config nobody could read. Merges to main failed intermittently,
+# with nothing retrying and nothing queuing two merges that landed minutes apart.
+# Here every setting is in this file and every log is in the run.
+#
+#   pull_request → build every worker exactly as production does, then dry-run the
+#                  deploy. No Cloudflare credentials needed, so it runs for every PR.
+#                  Marketing also uploads a preview version (no production
+#                  traffic) at a stable per-PR URL and links it on the PR.
+#   push to main → the same build, then deploy. Each worker deploys one run at a
+#                  time (newer merges wait rather than race), with retries for
+#                  Cloudflare API blips.
+#   push to staging → the app and the byte Worker, deployed to wrangler's
+#                  `staging` environment (staging-app.trytree.house,
+#                  staging.treehousefiles.com). Marketing has no staging copy.
+#
+# Needs the repo secret CLOUDFLARE_API_TOKEN (see docs/solutions/developer-experience/
+# cloudflare-deploys-via-github-actions.md for the token's permissions).
+name: Cloudflare
+
+on:
+  pull_request:
+  push:
+    branches: [main, staging]
+  workflow_dispatch:
+
+env:
+  CLOUDFLARE_ACCOUNT_ID: 8e74dde124932bd7ac4b7392b64e9323
+  # The SPA has ssr:false, so the API origin is compiled into the client bundle at
+  # BUILD time. It must match wrangler.jsonc vars.NUXT_PUBLIC_API_URL; the app's
+  # build enforces that (scripts/verify-pwa-build.mjs).
+  NUXT_PUBLIC_API_URL: ${{ github.ref == 'refs/heads/staging' && 'https://staging-api.trytree.house' || 'https://api.trytree.house' }}
+  # Selects wrangler.jsonc's env.staging for both the deploy and the build's
+  # API-origin check. Empty on every other ref, and unset before wrangler runs.
+  CLOUDFLARE_ENV: ${{ github.ref == 'refs/heads/staging' && 'staging' || '' }}
+  # PostHog project key (EU Cloud) for both workers. It's public: it ships in
+  # every page, and this is the value both live sites carried under Workers
+  # Builds. Without it the build silently ships with analytics off — which is
+  # what staging and PR previews want, so testing never lands in production
+  # analytics.
+  NUXT_PUBLIC_POSTHOG_KEY: ${{ github.event_name != 'pull_request' && github.ref != 'refs/heads/staging' && 'phc_q3pGGYtgLfbSvPAQM6TaHZwtUTz3MYoqPGGSN5UAPXGz' || '' }}
+  # Hopdate project key for the sidebar's "What's new" release notes
+  # (components/WhatsNew.vue). Public and read-only, so staging gets it too.
+  # Without it the build ships with the "What's new" row hidden.
+  NUXT_PUBLIC_HOPDATE_PROJECT_KEY: pk_PRVN1yW2k9HnQKVxPTuo4Wtp
+  # Sidekick affiliate tracking on the marketing site
+  # (packages/marketing/app/plugins/sidekick.client.ts). Production only, like
+  # PostHog: a preview or staging visit through an affiliate link must not
+  # record a click in the live programme. The cookie domain lets the referral
+  # cookie reach api.trytree.house with the app's checkout request.
+  NUXT_PUBLIC_SIDEKICK_PROGRAMME: ${{ github.event_name != 'pull_request' && github.ref != 'refs/heads/staging' && 'treehouse' || '' }}
+  NUXT_PUBLIC_SIDEKICK_COOKIE_DOMAIN: ${{ github.event_name != 'pull_request' && github.ref != 'refs/heads/staging' && '.trytree.house' || '' }}
+  # Optional: source-map upload for readable stack traces. The app build no-ops
+  # the upload without both values.
+  POSTHOG_CLI_TOKEN: ${{ secrets.POSTHOG_CLI_TOKEN }}
+  POSTHOG_PROJECT_ID: ${{ vars.POSTHOG_PROJECT_ID }}
+
+jobs:
+  worker:
+    name: ${{ matrix.worker }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # pull-requests/issues: write only so the preview step can comment its URL.
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    strategy:
+      fail-fast: false
+      matrix:
+        worker: ${{ github.ref == 'refs/heads/staging' && fromJSON('["app", "blob-worker"]') || fromJSON('["app", "marketing", "blob-worker"]') }}
+    # One deploy per worker per branch at a time; newer runs queue behind the
+    # current one. PR runs for the same branch replace each other.
+    concurrency:
+      group: cloudflare-${{ matrix.worker }}-${{ github.event_name == 'pull_request' && github.ref || github.ref_name }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    defaults:
+      run:
+        working-directory: packages/${{ matrix.worker }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Refuse a build with the dev API URL baked in
+        if: matrix.worker == 'app'
+        run: node scripts/preflight-deploy.mjs
+
+      - name: Validate the deploy (dry run)
+        run: |
+          [ -n "$CLOUDFLARE_ENV" ] || unset CLOUDFLARE_ENV
+          pnpm exec wrangler deploy --dry-run --outdir "$RUNNER_TEMP/dry-run"
+
+      # A preview of the marketing site for each PR: a new Worker version that
+      # takes no production traffic, served at a stable per-PR alias
+      # (pr-<n>-treehouse-marketing.<subdomain>.workers.dev) that moves to each
+      # new push. PRs from forks get no secrets, so they get no preview.
+      - name: Upload a preview version
+        id: preview
+        if: matrix.worker == 'marketing' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ALIAS: pr-${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -o pipefail
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::notice::CLOUDFLARE_API_TOKEN is not available to this run, so no preview was uploaded."
+            exit 0
+          fi
+          for attempt in 1 2 3; do
+            if pnpm exec wrangler versions upload --preview-alias "$ALIAS" \
+              --message "PR $ALIAS ${HEAD_SHA::7}" | tee "$RUNNER_TEMP/preview.log"; then
+              url=$(grep -oE "https://$ALIAS-[a-z0-9.-]+\.workers\.dev" "$RUNNER_TEMP/preview.log" | head -1 || true)
+              if [ -z "$url" ]; then
+                # Wrangler prints no URL when the Worker has preview URLs off.
+                # `versions upload` does not change that setting; only a
+                # production `wrangler deploy` applies `preview_urls` from
+                # wrangler.jsonc. Not this PR's fault, so don't fail it.
+                echo "::warning::Uploaded, but the Worker has preview URLs switched off, so there is no preview link. The next production deploy of main turns them on (preview_urls in wrangler.jsonc)."
+                exit 0
+              fi
+              echo "url=$url" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "::warning::wrangler versions upload failed (attempt $attempt of 3)"
+            sleep $((attempt * 20))
+          done
+          echo "::error::wrangler versions upload failed 3 times"
+          exit 1
+
+      - name: Check the preview answers
+        if: steps.preview.outputs.url != ''
+        env:
+          URL: ${{ steps.preview.outputs.url }}
+        run: |
+          for attempt in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$URL/docs") && [ "$code" = 200 ] && { echo "$URL/docs → 200"; exit 0; }
+            echo "$URL/docs → $code (attempt $attempt)"; sleep 10
+          done
+          echo "::error::$URL/docs did not answer 200"
+          exit 1
+
+      # One comment per PR, edited in place on each push rather than re-posted.
+      - name: Link the preview on the PR
+        if: steps.preview.outputs.url != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          URL: ${{ steps.preview.outputs.url }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          marker='<!-- treehouse-preview:marketing -->'
+          body="$marker
+          **Marketing preview:** $URL
+
+          Built from ${HEAD_SHA::7}. It follows each push to this PR and never takes production traffic. Analytics are off."
+          echo "Marketing preview: $URL" >> "$GITHUB_STEP_SUMMARY"
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+            --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body" >/dev/null
+          else
+            gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -f body="$body" >/dev/null
+          fi
+
+      - name: Deploy
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          [ -n "$CLOUDFLARE_ENV" ] || unset CLOUDFLARE_ENV
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN is not set, so nothing was deployed. See docs/solutions/developer-experience/cloudflare-deploys-via-github-actions.md"
+            exit 1
+          fi
+          # Cloudflare's API fails transiently now and then ("malformed response",
+          # 5xx). A deploy is idempotent for the same build, so retry with backoff
+          # before calling the run failed.
+          for attempt in 1 2 3; do
+            if pnpm exec wrangler deploy --message "github ${GITHUB_SHA::7}"; then
+              exit 0
+            fi
+            echo "::warning::wrangler deploy failed (attempt $attempt of 3)"
+            sleep $((attempt * 20))
+          done
+          echo "::error::wrangler deploy failed 3 times"
+          exit 1
+
+      - name: Check the live site answers
+        if: matrix.worker != 'blob-worker' && github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+        run: |
+          url=${{ matrix.worker == 'marketing' && 'https://trytree.house/docs' || github.ref == 'refs/heads/staging' && 'https://staging-app.trytree.house/.well-known/treehouse' || 'https://app.trytree.house/.well-known/treehouse' }}
+          for attempt in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$url") && [ "$code" = 200 ] && { echo "$url → 200"; exit 0; }
+            echo "$url → $code (attempt $attempt)"; sleep 10
+          done
+          echo "::error::$url did not answer 200 after deploy"
+          exit 1
+
+      # The byte Worker serves only grants, so a made-up one is the probe: 403
+      # means it is up and has its key; 503 means BLOB_WORKER_TOKEN_KEY is
+      # missing (set it with `wrangler secret put`, see the byte-path doc).
+      - name: Check the byte Worker answers with its key set
+        if: matrix.worker == 'blob-worker' && github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+        run: |
+          url=${{ github.ref == 'refs/heads/staging' && 'https://staging.treehousefiles.com' || 'https://treehousefiles.com' }}/b/not-a-grant
+          for attempt in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$url") && [ "$code" = 403 ] && { echo "$url → 403"; exit 0; }
+            echo "$url → $code (attempt $attempt)"; sleep 10
+          done
+          echo "::error::$url did not answer 403 after deploy (503 means the Worker has no BLOB_WORKER_TOKEN_KEY)"
+          exit 1

@@ -1,0 +1,573 @@
+/* Brand typefaces. MUST be the first statement in this file: it resolves to a
+ * Google Fonts `@import url(...)`, and CSS requires every @import to precede all
+ * other statements. Placed lower it lands mid-file after bundling, which postcss
+ * warns about and a bundler may drop outright — silently losing Fraunces in a
+ * production build while dev still looked fine from cache.
+ *
+ * Deliberately NOT design/tokens.css — the app keeps its own --th-* theme system
+ * and its switcher; pulling in the token layer would fight it. Faces only. */
+@import "design/fonts.css";
+@import "tailwindcss" source("../../..");
+@plugin "@tailwindcss/typography";
+
+/* Height-based variant. Tailwind's own breakpoints are all width-based, which is
+ * the wrong axis for the auth screens: they are vertically tall by design (a deep
+ * canopy, then the card), and the thing that runs out is HEIGHT — in the desktop
+ * app's window, on a laptop with browser chrome, or with devtools docked. Above
+ * this threshold nothing changes; below it the auth layout compacts instead of
+ * pushing its footer below the fold. */
+@custom-variant short (@media (max-height: 880px));
+
+/*
+ * Theming. Components use SEMANTIC color utilities (bg-surface, text-fg,
+ * bg-accent, …) that resolve to runtime CSS variables, so a theme is just a set
+ * of --th-* values. Presets live in [data-theme="…"] blocks below; a custom
+ * theme overrides the same --th-* vars via an injected <style>. Soft fills use
+ * the /opacity modifier (e.g. bg-accent/10), so most presets only set 14 vars.
+ */
+@theme inline {
+  --color-app: var(--th-app);
+  --color-surface: var(--th-surface);
+  --color-surface-2: var(--th-surface-2);
+  --color-border: var(--th-border);
+  --color-fg: var(--th-fg);
+  --color-fg-muted: var(--th-fg-muted);
+  --color-fg-subtle: var(--th-fg-subtle);
+  --color-accent: var(--th-accent);
+  --color-accent-fg: var(--th-accent-fg);
+  --color-danger: var(--th-danger);
+  --color-success: var(--th-success);
+  --color-warning: var(--th-warning);
+  --color-agent: var(--th-agent);
+  --color-human: var(--th-human);
+
+  /* `font-display` — the brand serif, for onboarding and auth headings only. The
+   * body face is deliberately left alone: this is a targeted pass on the screens a
+   * new user meets, not a restyle of the workspace UI. */
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+}
+
+/* Fraunces' SOFT axis rounds the serif ends, echoing the logo's round canopy.
+ * Mirrors `.font-display` / `.wordmark` in design/tokens.css, which this app does
+ * not import (see the note at the top of this file). */
+.font-display {
+  font-variation-settings: "SOFT" 100;
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-variation-settings:
+    "opsz" 144,
+    "SOFT" 100;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+/* The details panel (right sidebar). Its three views — file, folder, workspace —
+ * share one section heading and one label/value row layout, so moving between
+ * them reads as one panel rather than three. */
+.panel-heading {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-fg-subtle);
+}
+
+/* Label column of fixed width, values left-aligned beside it: the eye reads down
+ * one edge instead of crossing the panel to a ragged right-aligned value. */
+.panel-rows {
+  display: grid;
+  grid-template-columns: 5.25rem minmax(0, 1fr);
+  column-gap: 0.75rem;
+  row-gap: 0.4rem;
+  font-size: 0.875rem;
+}
+
+.panel-rows > div {
+  display: contents;
+}
+
+.panel-rows dt {
+  color: var(--color-fg-subtle);
+}
+
+.panel-rows dd {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-fg);
+}
+
+/* Default = Treehouse (the brand palette — see /design.md).
+ *
+ * `applyTheme` REMOVES the data-theme attribute for the default theme rather than
+ * setting it, so the default palette has to be the one in `:root`. Both selectors
+ * share this block deliberately: keeping them as two blocks meant the same 13
+ * values existed twice and could drift into a state where picking "Treehouse"
+ * explicitly rendered differently from getting it by default.
+ *
+ * The pairing with DEFAULT_THEME in app/composables/useTheme.ts is still by hand —
+ * point that constant at another preset and this block has to move with it, or the
+ * named preset silently renders in brand colours. Light below used to be this block. */
+:root,
+[data-theme="treehouse"] {
+  font-size: 16px;
+  --th-app: #f7f4ed;
+  --th-surface: #ffffff;
+  --th-surface-2: #eef2e8;
+  --th-border: #e3e6d8;
+  --th-fg: #23372b;
+  --th-fg-muted: #475569;
+  --th-fg-subtle: #8a988c;
+  --th-accent: #2e7d5b;
+  --th-accent-fg: #ffffff;
+  --th-danger: #c0473a;
+  --th-success: #3e8e5e;
+  --th-warning: #c39a6b;
+  --th-agent: #4f7cff;
+  --th-human: #5e9e5a;
+}
+
+/* Light — the previous default (Notion-grade neutral). Still selectable. */
+[data-theme="light"] {
+  --th-app: #fafafa;
+  --th-surface: #ffffff;
+  --th-surface-2: #f5f5f5;
+  --th-border: #e5e5e5;
+  --th-fg: #171717;
+  --th-fg-muted: #737373;
+  --th-fg-subtle: #a3a3a3;
+  --th-accent: #2563eb;
+  --th-accent-fg: #ffffff;
+  --th-danger: #dc2626;
+  --th-success: #059669;
+  --th-warning: #d97706;
+  --th-agent: #7c3aed;
+  --th-human: #059669;
+}
+
+[data-theme="dark"] {
+  --th-app: #0a0a0a;
+  --th-surface: #171717;
+  --th-surface-2: #262626;
+  --th-border: #2e2e2e;
+  --th-fg: #fafafa;
+  --th-fg-muted: #a3a3a3;
+  --th-fg-subtle: #6b7280;
+  --th-accent: #3b82f6;
+  --th-accent-fg: #ffffff;
+  --th-danger: #f87171;
+  --th-success: #34d399;
+  --th-warning: #fbbf24;
+  --th-agent: #a78bfa;
+  --th-human: #34d399;
+}
+
+[data-theme="dracula"] {
+  --th-app: #282a36;
+  --th-surface: #2f3140;
+  --th-surface-2: #44475a;
+  --th-border: #44475a;
+  --th-fg: #f8f8f2;
+  --th-fg-muted: #b9bdd4;
+  --th-fg-subtle: #6272a4;
+  --th-accent: #bd93f9;
+  --th-accent-fg: #282a36;
+  --th-danger: #ff5555;
+  --th-success: #50fa7b;
+  --th-warning: #f1fa8c;
+  --th-agent: #bd93f9;
+  --th-human: #50fa7b;
+}
+
+[data-theme="nord"] {
+  --th-app: #2e3440;
+  --th-surface: #3b4252;
+  --th-surface-2: #434c5e;
+  --th-border: #4c566a;
+  --th-fg: #eceff4;
+  --th-fg-muted: #d8dee9;
+  --th-fg-subtle: #7b88a1;
+  --th-accent: #88c0d0;
+  --th-accent-fg: #2e3440;
+  --th-danger: #bf616a;
+  --th-success: #a3be8c;
+  --th-warning: #ebcb8b;
+  --th-agent: #b48ead;
+  --th-human: #a3be8c;
+}
+
+[data-theme="solarized-light"] {
+  --th-app: #fdf6e3;
+  --th-surface: #fbf6e9;
+  --th-surface-2: #eee8d5;
+  --th-border: #e3dcc6;
+  --th-fg: #073642;
+  --th-fg-muted: #586e75;
+  --th-fg-subtle: #93a1a1;
+  --th-accent: #268bd2;
+  --th-accent-fg: #fdf6e3;
+  --th-danger: #dc322f;
+  --th-success: #859900;
+  --th-warning: #b58900;
+  --th-agent: #6c71c4;
+  --th-human: #2aa198;
+}
+
+[data-theme="rose-pine"] {
+  --th-app: #191724;
+  --th-surface: #1f1d2e;
+  --th-surface-2: #26233a;
+  --th-border: #403d52;
+  --th-fg: #e0def4;
+  --th-fg-muted: #908caa;
+  --th-fg-subtle: #6e6a86;
+  --th-accent: #c4a7e7;
+  --th-accent-fg: #191724;
+  --th-danger: #eb6f92;
+  --th-success: #9ccfd8;
+  --th-warning: #f6c177;
+  --th-agent: #c4a7e7;
+  --th-human: #9ccfd8;
+}
+
+@layer base {
+  html,
+  body,
+  #__nuxt {
+    @apply min-h-screen bg-app text-fg;
+  }
+
+  body {
+    @apply antialiased;
+  }
+
+  a {
+    @apply text-accent underline-offset-4 hover:underline;
+  }
+}
+
+/*
+ * Make @tailwindcss/typography prose follow the active theme. Unlayered (not in
+ * @layer base) so it overrides the plugin's own `.prose` colour variables.
+ */
+.prose {
+  --tw-prose-body: var(--th-fg);
+  --tw-prose-headings: var(--th-fg);
+  --tw-prose-lead: var(--th-fg-muted);
+  --tw-prose-links: var(--th-accent);
+  --tw-prose-bold: var(--th-fg);
+  --tw-prose-counters: var(--th-fg-muted);
+  --tw-prose-bullets: var(--th-fg-subtle);
+  --tw-prose-hr: var(--th-border);
+  --tw-prose-quotes: var(--th-fg);
+  --tw-prose-quote-borders: var(--th-border);
+  --tw-prose-captions: var(--th-fg-muted);
+  --tw-prose-code: var(--th-fg);
+  --tw-prose-pre-code: var(--th-fg);
+  --tw-prose-pre-bg: var(--th-surface-2);
+  --tw-prose-th-borders: var(--th-border);
+  --tw-prose-td-borders: var(--th-border);
+}
+/*
+ * Keep rendered markdown inside the screen it's rendered on.
+ *
+ * Markdown carries content the document's own width can't negotiate with: a
+ * seven-column table, a 120-character URL, a base64 token. Without these rules
+ * those escaped the reading column, and because the page pane scrolled on both
+ * axes the WHOLE document slid sideways to accommodate one of them — headings,
+ * paragraphs and blockquotes drifting off-screen together. The page pane is now
+ * `overflow-x-hidden`, so anything wide has to handle its own overflow here.
+ *
+ * `overflow-wrap: anywhere` (not `break-word`) so an unbreakable run breaks
+ * mid-token rather than pushing the line box wider than its container.
+ */
+.prose {
+  overflow-wrap: anywhere;
+}
+.prose :where(pre) {
+  overflow-x: auto;
+}
+/* The renderer wraps every table in this (see utils/markdownRefs.ts), so the
+ * table keeps its own layout algorithm and the wrapper does the scrolling —
+ * `display: block` on the table itself would throw the column sizing away.
+ *
+ * `width: max-content` is what makes the table overflow rather than compress:
+ * left at `auto` it resolves against the scroller's content box and squeezes
+ * itself to fit, which is the squashed-columns result this is meant to avoid.
+ * `min-width: 100%` keeps a narrow table filling the column as before.
+ *
+ * Cells opt out of the `overflow-wrap: anywhere` above. That rule exists for a
+ * runaway URL in a paragraph; applied to a cell it drives max-content down to
+ * roughly one character, so the table "fits" any width by breaking every
+ * heading mid-word ("Q1 202 6", "Stron g growth"). Prose in a cell still wraps
+ * at spaces. */
+.prose .table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.prose .table-scroll > table {
+  width: max-content;
+  min-width: 100%;
+  margin-block: 0;
+}
+.prose :where(th, td) {
+  overflow-wrap: normal;
+}
+/*
+ * A rendered-markdown link the viewer could not resolve has its href removed
+ * (see utils/markdownRefs.ts) — most often a relative link inside a single-file
+ * public share, where sibling files aren't reachable. Strip the link styling
+ * too: something that looks clickable and isn't is worse than plain text.
+ */
+.prose a:not([href]) {
+  color: inherit;
+  text-decoration: none;
+}
+/*
+ * Onboarding motion — the named animations from /design.md, defined once here so
+ * every step uses the same curves instead of re-inventing them per component.
+ *
+ *   grow-in    scale from 0.92 + fade, origin bottom. Cards and sprout moments.
+ *   sway       ±2deg loop. Idle illustration foliage ONLY, never UI.
+ *   leaf-fall  a single celebratory drift. Reserved for big completions.
+ *
+ * Motion is organic: things grow, settle and sway — they don't snap or bounce.
+ * Everything collapses to a <=100ms fade under prefers-reduced-motion.
+ */
+/*
+ * Every select gets the same arrow, because the browser's own sits hard against the
+ * right edge. Drawn from the text colour so it follows the theme, and unlayered so
+ * this right padding beats the px-* each select sets.
+ */
+select {
+  appearance: none;
+  padding-inline-end: 1.75rem;
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - 0.8125rem) 55%,
+    calc(100% - 0.5rem) 55%;
+  background-size: 0.3125rem 0.3125rem;
+  background-repeat: no-repeat;
+}
+
+@layer components {
+  /* Buttons. One shape and one type size for every ordinary button, so a panel
+   * of them reads as a set instead of each one being styled where it was
+   * written. Layout (width, margins) stays with the caller; utilities win over
+   * this layer, so `w-full` and friends just work.
+   *   th-btn + th-btn-secondary  bordered, the default
+   *   th-btn + th-btn-primary    the one action a form exists for
+   *   th-btn + th-btn-quiet      borderless, for secondary actions in a row
+   *   th-btn-sm                  the compact size, inside cards */
+  .th-btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md border border-transparent px-3 py-1.5 text-sm font-medium no-underline transition disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .th-btn-sm {
+    @apply gap-1 px-2 py-1 text-xs;
+  }
+  .th-btn-secondary {
+    @apply border-border bg-surface text-fg hover:bg-surface-2 disabled:hover:bg-surface;
+  }
+  .th-btn-primary {
+    @apply bg-accent text-accent-fg hover:bg-accent/90 disabled:hover:bg-accent;
+  }
+  .th-btn-quiet {
+    @apply text-fg-muted hover:bg-surface-2 hover:text-fg;
+  }
+  .th-grow-in {
+    animation: th-grow-in 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    transform-origin: bottom center;
+  }
+  .th-rise {
+    animation: th-rise 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: var(--th-delay, 0ms);
+  }
+  .th-sway {
+    animation: th-sway 6s ease-in-out infinite;
+    transform-origin: bottom center;
+  }
+  /* `reveal` — the one-shot entrance used by the arrival pages (connect, link,
+   * invite). It lived as an identical copy in three `<style scoped>` blocks, which
+   * is how three copies drift: `th-rise` above already does nearly the same thing
+   * at a different duration, and a fourth copy would have made that worse. Kept at
+   * its own 500ms rather than folded into `th-rise`, because those pages are
+   * choreographed against this timing. */
+  .reveal {
+    animation: fade-up 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  /* `locate` — the sidebar tree row someone asked to find (the breadcrumb's last
+   * crumb, "Reveal open file"). Two rings grow out of the row and settle away,
+   * so the eye lands on it after the tree scrolls. Applied and removed from
+   * script; see AppSidebar. */
+  .th-locate {
+    animation: th-locate 650ms cubic-bezier(0.22, 1, 0.36, 1) 2;
+  }
+  .th-leaf {
+    position: absolute;
+    top: -2.5rem;
+    animation: th-leaf-fall 3.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: calc(var(--th-i, 0) * 240ms);
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+@keyframes th-grow-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+@keyframes th-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+@keyframes th-locate {
+  from {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-accent) 55%, transparent);
+  }
+  to {
+    box-shadow: 0 0 0 6px color-mix(in oklab, var(--color-accent) 0%, transparent);
+  }
+}
+@keyframes th-sway {
+  0%,
+  100% {
+    transform: rotate(-2deg);
+  }
+  50% {
+    transform: rotate(2deg);
+  }
+}
+@keyframes th-leaf-fall {
+  0% {
+    opacity: 0;
+    transform: translateY(0) rotate(0deg);
+  }
+  12% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(30rem) rotate(240deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .th-grow-in,
+  .th-rise,
+  .th-sway,
+  .reveal {
+    animation: th-fade 100ms ease both;
+  }
+  .th-leaf {
+    display: none;
+  }
+  /* The solid selected fill already marks the row; the scroll lands it. */
+  .th-locate {
+    animation: none;
+  }
+  @keyframes th-fade {
+    from {
+      opacity: 0;
+    }
+  }
+}
+/* Details-panel tabs. The active tab is wider because it alone shows its label. */
+.panel-tab {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border-radius: 0.375rem;
+  padding: 0.375rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-fg-subtle);
+  transition:
+    color 150ms,
+    background-color 150ms;
+}
+
+.panel-tab:hover {
+  color: var(--color-fg);
+}
+
+.panel-tab-active {
+  flex-grow: 2.2;
+  background: var(--color-surface);
+  color: var(--color-fg);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+}
+
+.panel-tab-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-fg-subtle);
+}
+/* An occasional action in the details panel, set as a menu-like row. */
+.panel-action {
+  display: flex;
+  width: calc(100% + 1rem);
+  align-items: center;
+  gap: 0.625rem;
+  margin-inline: -0.5rem;
+  border-radius: 0.5rem;
+  padding: 0.4375rem 0.5rem;
+  text-align: left;
+  font-size: 0.875rem;
+  color: var(--color-fg);
+  transition: background-color 150ms;
+}
+
+.panel-action:hover {
+  background: var(--color-surface-2);
+}
+
+.panel-action svg {
+  flex: none;
+  color: var(--color-fg-subtle);
+}
+
+/* A setting row: what it is on the left, its one control on the right. */
+.panel-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+/* A square icon-only button, for the file summary line. */
+.panel-icon-btn {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: var(--color-surface);
+  color: var(--color-fg-muted);
+  transition:
+    color 150ms,
+    background-color 150ms;
+}
+
+.panel-icon-btn:hover {
+  background: var(--color-surface-2);
+  color: var(--color-fg);
+}

@@ -1,0 +1,4 @@
+# Local OpenRouter / image-gen key
+.env
+# Generated illustration test runs (review locally, don't commit)
+.illustration-tests/

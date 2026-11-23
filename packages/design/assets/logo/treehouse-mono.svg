@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1254 1254" fill="none">
+  <!-- Treehouse logo — monochrome silhouette (charcoal). Single-color
+       contexts on light surfaces. The house face is a true knockout
+       (transparent), so the page background shows through. -->
+  <defs>
+    <mask id="th-mono-wall">
+      <rect width="1254" height="1254" fill="white"/>
+      <path d="M480 612 L627 505 L774 612 V788 H480 Z" fill="black"/>
+    </mask>
+  </defs>
+
+  <g mask="url(#th-mono-wall)">
+    <g fill="#2B2F33">
+      <circle cx="627" cy="330" r="185"/>
+      <circle cx="455" cy="365" r="160"/>
+      <circle cx="800" cy="365" r="160"/>
+      <circle cx="335" cy="505" r="135"/>
+      <circle cx="920" cy="505" r="135"/>
+      <circle cx="300" cy="625" r="105"/>
+      <circle cx="955" cy="625" r="105"/>
+      <circle cx="470" cy="490" r="140"/>
+      <circle cx="785" cy="490" r="140"/>
+      <circle cx="627" cy="440" r="150"/>
+      <circle cx="370" cy="620" r="110"/>
+      <circle cx="885" cy="620" r="110"/>
+      <circle cx="430" cy="650" r="110"/>
+      <circle cx="825" cy="650" r="110"/>
+      <circle cx="560" cy="645" r="100"/>
+      <circle cx="700" cy="645" r="100"/>
+      <circle cx="350" cy="710" r="80"/>
+      <rect x="380" y="690" width="494" height="104"/>
+      <circle cx="905" cy="710" r="80"/>
+    </g>
+    <g stroke="#2B2F33" stroke-width="24" stroke-linecap="round">
+      <path d="M395 690 C355 678 320 665 290 652"/>
+      <path d="M330 668 L308 605"/>
+      <path d="M860 690 C900 678 935 665 965 652"/>
+      <path d="M925 668 L947 605"/>
+    </g>
+    <g fill="#2B2F33">
+      <rect x="372" y="726" width="22" height="66" rx="10"/>
+      <rect x="438" y="726" width="22" height="66" rx="10"/>
+      <rect x="794" y="726" width="22" height="66" rx="10"/>
+      <rect x="860" y="726" width="22" height="66" rx="10"/>
+    </g>
+    <path d="M352 752 H486" stroke="#2B2F33" stroke-width="14" stroke-linecap="round"/>
+    <path d="M768 752 H902" stroke="#2B2F33" stroke-width="14" stroke-linecap="round"/>
+    <g stroke="#2B2F33" stroke-width="42" stroke-linecap="round">
+      <path d="M575 870 C500 848 440 832 404 826"/>
+      <path d="M680 870 C755 848 815 832 851 826"/>
+    </g>
+    <g fill="#2B2F33">
+      <rect x="380" y="820" width="26" height="62" rx="12"/>
+      <rect x="458" y="820" width="26" height="62" rx="12"/>
+      <rect x="770" y="820" width="26" height="62" rx="12"/>
+      <rect x="848" y="820" width="26" height="62" rx="12"/>
+    </g>
+    <rect x="340" y="788" width="574" height="38" rx="12" fill="#2B2F33"/>
+    <ellipse cx="627" cy="1078" rx="210" ry="24" fill="#2B2F33"/>
+    <path d="M552 822 C568 900 566 945 562 945 C554 1000 518 1048 484 1072 C536 1086 720 1086 772 1072 C740 1048 704 1000 696 945 C692 945 690 900 704 822 Z" fill="#2B2F33"/>
+    <g stroke="#2B2F33" stroke-width="14" stroke-linecap="round">
+      <path d="M746 776 L804 1076"/>
+      <path d="M802 776 L860 1076"/>
+      <path d="M756 832 L813 832"/>
+      <path d="M766 882 L823 882"/>
+      <path d="M776 932 L833 932"/>
+      <path d="M786 982 L841 982"/>
+      <path d="M796 1032 L851 1032"/>
+    </g>
+  </g>
+
+  <!-- House details, drawn over the knocked-out wall -->
+  <g stroke="#2B2F33" stroke-width="38" stroke-linecap="round">
+    <path d="M444 634 L627 500"/>
+    <path d="M627 500 L810 634"/>
+  </g>
+  <path d="M530 790 L530 680 A40 40 0 0 1 610 680 L610 790 Z" fill="#2B2F33"/>
+  <rect x="666" y="625" width="80" height="80" rx="8" stroke="#2B2F33" stroke-width="12"/>
+  <g stroke="#2B2F33" stroke-width="9">
+    <path d="M706 631 V699"/>
+    <path d="M672 665 H740"/>
+  </g>
+</svg>

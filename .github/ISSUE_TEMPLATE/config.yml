@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions & ideas
+    url: https://trytree.house/docs
+    about: Start with the docs. For anything else, email info@pixelhop.io rather than opening an issue.
+  - name: Report a security vulnerability
+    url: https://github.com/pixelhop/treehouse/security/advisories/new
+    about: Report security issues privately via GitHub's private vulnerability reporting — never in a public issue.

@@ -1,0 +1,87 @@
+name: Bug report
+description: Report a reproducible problem in Treehouse
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug! Please search
+        [existing issues](https://github.com/pixelhop/treehouse/issues) first.
+
+        **Do not report security vulnerabilities here** — follow
+        [SECURITY.md](https://github.com/pixelhop/treehouse/blob/main/SECURITY.md)
+        instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal, ordered steps that reproduce the problem.
+      placeholder: |
+        1. Go to '...'
+        2. Run '...'
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: false
+  - type: dropdown
+    id: component
+    attributes:
+      label: Which part of Treehouse?
+      options:
+        - API / MCP server (packages/api)
+        - Web app (packages/app)
+        - CLI (packages/cli)
+        - Desktop app (packages/desktop)
+        - Workers (packages/workers)
+        - Database / migrations (packages/db)
+        - Self-hosting
+        - Not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: How are you running Treehouse?
+      options:
+        - Hosted (trytree.house)
+        - Self-hosted
+        - Local development
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: Release tag, image tag, or git commit SHA. For the CLI, the output of `treehouse --version`.
+      placeholder: "v0.1.0 / treehouse 0.1.6 / commit abc1234"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, browser (for app bugs), Node version (for local dev).
+      placeholder: "macOS 14 / Chrome 130 / Node 22.21.1"
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or screenshots
+      description: Paste any error output or attach screenshots. This will be rendered as code, so no backticks needed.
+      render: shell
+    validations:
+      required: false

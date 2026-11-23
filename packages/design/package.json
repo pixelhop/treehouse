@@ -1,0 +1,19 @@
+{
+  "name": "design",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Treehouse brand and design system: tokens, fonts, logo and motif assets.",
+  "license": "AGPL-3.0-only",
+  "files": [
+    "src",
+    "assets"
+  ],
+  "type": "module",
+  "exports": {
+    "./tokens.css": "./src/tokens.css",
+    "./fonts.css": "./src/fonts.css",
+    "./beta-tag.css": "./src/beta-tag.css",
+    "./prompts": "./src/prompts/index.js",
+    "./assets/*": "./assets/*"
+  }
+}

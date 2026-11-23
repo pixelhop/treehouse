@@ -1,0 +1,39 @@
+node_modules
+*.log*
+.nuxt
+.nitro
+.cache
+.output
+.env
+dist
+coverage
+.pnpm-store
+
+.env*
+.flaskenv*
+!.env.project
+!.env.vault
+!.env.example
+!**/.env.example
+
+storage
+.turbo
+.DS_Store
+
+# Local blob storage (Fs driver)
+.data/
+
+# wrangler dev state (local R2) and Worker secrets for local dev
+.wrangler/
+.dev.vars
+
+# Claude Code worktrees (parallel dev envs)
+.claude/worktrees/
+
+# Desktop e2e harness sandbox (scripts/desktop-e2e.mjs)
+.e2e/
+.vitest/
+
+# Fallow reports and caches
+.fallow/
+.fallow-reports/

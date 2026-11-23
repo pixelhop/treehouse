@@ -1,0 +1,1041 @@
+// Prisma 7 schema.
+// The `prisma-client` generator emits an ESM client into ./generated/prisma,
+// which is consumed via the driver adapter in ../index.ts.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "esm"
+  runtime      = "nodejs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// better-auth core tables.
+// Managed by better-auth — regenerate with `pnpm --filter db run auth:generate`
+// after changing the auth config (e.g. enabling extra plugins).
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String       @id
+  name          String
+  email         String       @unique
+  emailVerified Boolean      @default(false)
+  image         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  // Written by the better-auth Stripe plugin. Treehouse bills the ORGANIZATION,
+  // not the user, so this stays null in practice — the column exists because
+  // the plugin's schema expects it.
+  stripeCustomerId String?
+  // The sign-up form's optional "How did you hear about Treehouse?" answer: an
+  // option key such as "search" or "friend", or "other: " and their own words.
+  // Declared as a better-auth additional field in server/utils/auth.ts.
+  heardAbout    String?
+  // Sign-up's "Send me product news" checkbox (unticked by default), and when
+  // it was ticked: the record of consent. Cleared together on opting out.
+  marketingOptIn   Boolean   @default(false)
+  marketingOptInAt DateTime?
+  sessions      Session[]
+  accounts      Account[]
+  members       Member[]
+  invitations   Invitation[]
+  oauthClients       OauthClient[]
+  oauthRefreshTokens OauthRefreshToken[]
+  oauthAccessTokens  OauthAccessToken[]
+  oauthConsents      OauthConsent[]
+
+  @@map("user")
+}
+
+model Session {
+  id                   String   @id
+  expiresAt            DateTime
+  token                String   @unique
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  ipAddress            String?
+  userAgent            String?
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeOrganizationId String?
+  oauthRefreshTokens   OauthRefreshToken[]
+  oauthAccessTokens    OauthAccessToken[]
+
+  @@map("session")
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("account")
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("verification")
+  @@index([identifier])
+}
+
+// ---------------------------------------------------------------------------
+// better-auth organization plugin tables.
+// ---------------------------------------------------------------------------
+
+model Organization {
+  id          String       @id
+  name        String
+  slug        String?      @unique
+  logo        String?
+  metadata    String?
+  createdAt   DateTime     @default(now())
+  // The Stripe customer for this org. Treehouse's billing entity is the
+  // organization: a plan is bought once and covers every member and workspace
+  // under it, and a user may belong to several orgs on different plans.
+  stripeCustomerId String?
+  members     Member[]
+  invitations Invitation[]
+  // Treehouse back-relation (hand-maintained — see warning at the bottom of this file).
+  workspaces  Workspace[]
+
+  @@map("organization")
+}
+
+model Member {
+  id             String       @id
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String       @default("member")
+  createdAt      DateTime     @default(now())
+
+  @@map("member")
+  // One membership per (org, user). The invite-accept route pre-checks for an
+  // existing member, but that check and the insert are separate statements: two
+  // concurrent accepts of the same link both saw "not a member" and both inserted.
+  // Only the database can make that mutually exclusive. NOTE: this constraint is
+  // hand-added to a better-auth model — `auth:generate` regenerates this file and
+  // would drop it (see CLAUDE.md).
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model Invitation {
+  id             String       @id
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  role           String?
+  status         String       @default("pending")
+  expiresAt      DateTime
+  inviterId      String
+  inviter        User         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@map("invitation")
+  @@index([organizationId])
+  @@index([email])
+}
+
+// better-auth Stripe plugin. `referenceId` is the ORGANIZATION id (see the
+// plugin config in server/utils/billing.ts), and `seats` tracks org membership.
+//
+// This table is the source of truth entitlement resolution reads from, but it
+// is never trusted blindly: reconciliation re-derives it from Stripe on a
+// schedule, and a missing or ambiguous row resolves to the last known plan
+// rather than downward (see server/utils/plans.ts).
+model Subscription {
+  id                   String    @id
+  plan                 String
+  referenceId          String
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  status               String?   @default("incomplete")
+  periodStart          DateTime?
+  periodEnd            DateTime?
+  trialStart           DateTime?
+  trialEnd             DateTime?
+  cancelAtPeriodEnd    Boolean?  @default(false)
+  cancelAt             DateTime?
+  canceledAt           DateTime?
+  endedAt              DateTime?
+  seats                Int?
+  billingInterval      String?
+  stripeScheduleId     String?
+
+  @@index([referenceId])
+  @@map("subscription")
+}
+
+// Durable log of every Stripe webhook event.
+//
+// `stripeEventId` is unique, and that constraint IS the idempotency mechanism:
+// Stripe retries on exponential backoff for up to three days, so duplicates are
+// certain, and an insert that violates this is the signal to skip rather than
+// re-apply.
+//
+// Kept beyond its processing role. It is the audit trail when a customer
+// disputes a charge, and the replay mechanism after a handler bug — neither of
+// which is recoverable from Stripe alone once state has diverged.
+model StripeEvent {
+  id             String    @id @default(uuid())
+  stripeEventId  String    @unique
+  type           String
+  // Stripe's own creation time, NOT ours. Delivery order is not guaranteed, so
+  // arrival time says nothing about the order events actually happened in.
+  stripeCreated  DateTime
+  payload        Json
+  receivedAt     DateTime  @default(now())
+  processedAt    DateTime?
+  error          String?
+
+  @@index([type])
+  @@index([receivedAt])
+  @@map("stripe_event")
+}
+
+model Apikey {
+  id                  String    @id
+  configId            String    @default("default")
+  name                String?
+  start               String?
+  referenceId         String
+  prefix              String?
+  key                 String
+  refillInterval      Int?
+  refillAmount        Int?
+  lastRefillAt        DateTime?
+  enabled             Boolean?  @default(true)
+  rateLimitEnabled    Boolean?  @default(true)
+  rateLimitTimeWindow Int?      @default(86400000)
+  rateLimitMax        Int?      @default(10)
+  requestCount        Int?      @default(0)
+  remaining           Int?
+  lastRequest         DateTime?
+  expiresAt           DateTime?
+  createdAt           DateTime
+  updatedAt           DateTime
+  permissions         String?
+  metadata            String?
+
+  @@index([configId])
+  @@index([referenceId])
+  @@index([key])
+  @@map("apikey")
+}
+
+// ---------------------------------------------------------------------------
+// better-auth jwt + @better-auth/mcp (OAuth provider) tables.
+// OAuth for MCP clients: dynamically registered clients, their tokens and the
+// user's consent to each. `Jwks` holds the keys access tokens are signed with.
+// Generated from the auth config into a scratch file and merged by hand.
+// ---------------------------------------------------------------------------
+
+model Jwks {
+  id         String    @id
+  publicKey  String
+  privateKey String
+  createdAt  DateTime
+  expiresAt  DateTime?
+  alg        String?
+  crv        String?
+
+  @@map("jwks")
+}
+
+model OauthClient {
+  id                               String                @id
+  clientId                         String
+  clientSecret                     String?
+  clientDiscoveryId                String?
+  disabled                         Boolean?              @default(false)
+  skipConsent                      Boolean?
+  enableEndSession                 Boolean?
+  subjectType                      String?
+  scopes                           String[]
+  clientCredentialsScopes          String[]              @default([])
+  userId                           String?
+  user                             User?                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt                        DateTime?
+  updatedAt                        DateTime?
+  name                             String?
+  uri                              String?
+  icon                             String?
+  contacts                         String[]
+  tos                              String?
+  policy                           String?
+  softwareId                       String?
+  softwareVersion                  String?
+  softwareStatement                String?
+  redirectUris                     String[]
+  postLogoutRedirectUris           String[]
+  backchannelLogoutUri             String?
+  backchannelLogoutSessionRequired Boolean?
+  tokenEndpointAuthMethod          String?
+  applicationType                  String?
+  jwks                             String?
+  jwksUri                          String?
+  grantTypes                       String[]
+  responseTypes                    String[]
+  requirePKCE                      Boolean?
+  dpopBoundAccessTokens            Boolean?              @default(false)
+  referenceId                      String?
+  metadata                         Json?
+  clientResources                  OauthClientResource[]
+  refreshTokens                    OauthRefreshToken[]
+  accessTokens                     OauthAccessToken[]
+  consents                         OauthConsent[]
+
+  @@unique([clientId])
+  @@index([userId])
+  @@map("oauthClient")
+}
+
+model OauthResource {
+  id                            String                @id
+  identifier                    String
+  name                          String
+  accessTokenTtl                Int?
+  refreshTokenTtl               Int?
+  signingAlgorithm              String?
+  signingKeyId                  String?
+  allowedScopes                 String[]
+  customClaims                  Json?
+  dpopBoundAccessTokensRequired Boolean?              @default(false)
+  disabled                      Boolean?              @default(false)
+  createdAt                     DateTime?
+  updatedAt                     DateTime?
+  policyVersion                 Int?                  @default(1)
+  metadata                      Json?
+  clientResources               OauthClientResource[]
+
+  @@unique([identifier])
+  @@map("oauthResource")
+}
+
+model OauthClientResource {
+  id         String        @id
+  clientId   String
+  client     OauthClient   @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  resourceId String
+  resource   OauthResource @relation(fields: [resourceId], references: [identifier], onDelete: Cascade)
+  metadata   Json?
+  createdAt  DateTime?
+
+  @@unique([clientId, resourceId], map: "oauthClientResource_clientId_resourceId_uidx")
+  @@index([clientId])
+  @@index([resourceId])
+  @@map("oauthClientResource")
+}
+
+model OauthRefreshToken {
+  id                      String             @id
+  token                   String
+  clientId                String
+  client                  OauthClient        @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  sessionId               String?
+  session                 Session?           @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  userId                  String
+  user                    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referenceId             String?
+  authorizationCodeId     String?
+  resources               String[]
+  requestedUserInfoClaims String[]
+  expiresAt               DateTime
+  createdAt               DateTime
+  revoked                 DateTime?
+  rotatedAt               DateTime?
+  rotationReplayResponse  String?
+  rotationReplayExpiresAt DateTime?
+  authTime                DateTime?
+  confirmation            Json?
+  scopes                  String[]
+  accessTokens            OauthAccessToken[]
+
+  @@unique([token])
+  @@index([clientId])
+  @@index([sessionId])
+  @@index([userId])
+  @@index([authorizationCodeId])
+  @@map("oauthRefreshToken")
+}
+
+model OauthAccessToken {
+  id                      String             @id
+  token                   String
+  clientId                String
+  client                  OauthClient        @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  sessionId               String?
+  session                 Session?           @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  userId                  String?
+  user                    User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referenceId             String?
+  authorizationCodeId     String?
+  resources               String[]
+  requestedUserInfoClaims String[]
+  refreshId               String?
+  refreshToken            OauthRefreshToken? @relation(fields: [refreshId], references: [id], onDelete: Cascade)
+  expiresAt               DateTime
+  createdAt               DateTime
+  revoked                 DateTime?
+  confirmation            Json?
+  scopes                  String[]
+
+  @@unique([token])
+  @@index([clientId])
+  @@index([sessionId])
+  @@index([userId])
+  @@index([authorizationCodeId])
+  @@index([refreshId])
+  @@map("oauthAccessToken")
+}
+
+model OauthConsent {
+  id                      String      @id
+  clientId                String
+  client                  OauthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  userId                  String?
+  user                    User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referenceId             String?
+  resources               String[]
+  requestedUserInfoClaims String[]
+  scopes                  String[]
+  createdAt               DateTime
+  updatedAt               DateTime
+  // Treehouse addition (hand-maintained — `auth:generate` would drop it): the
+  // name the user gave this connection on the consent screen ("Claude Code on
+  // my laptop"). It is the agent's label on the change feed and in the
+  // connections list. Null until the consent page sets it, and for consents
+  // made before naming existed; readers fall back to the client's own name.
+  name                    String?
+
+  @@index([clientId])
+  @@index([userId])
+  @@map("oauthConsent")
+}
+
+model OauthClientAssertion {
+  id        String   @id
+  expiresAt DateTime
+
+  @@map("oauthClientAssertion")
+}
+
+// ===========================================================================
+// Treehouse domain models (HAND-MAINTAINED).
+//
+// WARNING: `better-auth generate` (pnpm --filter db run auth:generate)
+// regenerates this ENTIRE file from the auth config and WILL DELETE everything
+// below. Do not re-run auth:generate now that these models exist. If the auth
+// config must change again, regenerate into a scratch file and merge by hand.
+// ===========================================================================
+
+// A workspace is a tree of plain files. It is the only container users see; the
+// better-auth Organization it points at is a HIDDEN 1:1 carrier for its member
+// list, roles, and better-auth's member-removal hook — never shown to users.
+// Every creation path goes through `createWorkspaceWithOrg`
+// (packages/api/server/utils/workspace.ts), which mints the pair together, and
+// the 20260825170951_split_orgs_one_per_workspace migration made existing data
+// 1:1. The schema still permits several workspaces per organization; nothing
+// creates that shape any more.
+model Workspace {
+  id             String        @id @default(uuid())
+  organizationId String
+  name           String
+  // Display icon: an emoji ("🌳") or an Iconify name ("solar:folder-bold-duotone").
+  icon           String?
+  // Palette token for the icon tile background (e.g. "blue").
+  color          String?
+  // Default theme: a preset id ("dark", "dracula", …) or "custom" (themeCss
+  // holds the --th-* overrides). Users can override locally per workspace.
+  theme          String?
+  themeCss       String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  files          FileNode[]
+  changes        ChangeEvent[]
+  nodeMeta       NodeMeta[]
+  shares         Share[]
+  readStates     WorkspaceReadState[]
+  nodeAcls       NodeAcl[]
+  commentThreads CommentThread[]
+  commentEntries CommentEntry[]
+  fileReadStates FileReadState[]
+  encryptionKeys WorkspaceKey[]
+  shareUsage     ShareUsage[]
+  fileLinks      FileLinks[]
+  recoveryOperations RecoveryOperation[]
+
+  @@index([organizationId])
+  @@map("workspace")
+}
+
+// Per-user "last seen" position in a workspace's change feed, for the activity
+// feed's unread badge + "new since you were here" divider. One row per
+// (user, workspace); `lastSeenSeq` advances monotonically as the user reviews
+// activity. `userId` is loose (no FK), mirroring ChangeEvent.actorId. Not a
+// file-write-path field — it does not touch FileNode/ChangeEvent.
+model WorkspaceReadState {
+  id          String    @id @default(uuid())
+  userId      String
+  workspaceId String
+  lastSeenSeq BigInt    @default(0)
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId])
+  @@map("workspace_read_state")
+}
+
+// One row per live file, identified by path within a workspace (path-based
+// identity for v0: a rename is delete + create). `version` drives optimistic
+// concurrency (compare-and-swap on write); `contentHash` enables no-op
+// detection and content-addressed blob keys. Deletes are hard deletes — the
+// change feed is the delete history.
+model FileNode {
+  id          String    @id @default(uuid())
+  workspaceId String
+  path        String
+  version     Int       @default(1)
+  contentHash String
+  size        Int
+  contentType String
+  blobKey     String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, path])
+  @@map("file_node")
+}
+
+// Append-only change feed. `principal` is sourced from the authenticated key's
+// actorType (by credential, not by route) so the agent-write metric stays
+// correct regardless of channel.
+model ChangeEvent {
+  id          String    @id @default(uuid())
+  workspaceId String
+  path        String
+  // A ChangeOp: the canonical list is packages/shared/changeOps.ts (file,
+  // comment_* and access_* ops). Kept a plain string so adding an op needs no
+  // migration.
+  op          String
+  version     Int?
+  principal   String // agent | human
+  actorId     String?
+  // Identity of the API key that performed the change, plus a snapshot of its
+  // display label at write time. Both null for cookie/human-direct events and
+  // for events written before this feature. `actorKeyId` is present for ANY key
+  // (human CLI keys included), so the agent-vs-human distinction is `principal`,
+  // never the presence of `actorKeyId`.
+  actorKeyId  String?
+  actorLabel  String?
+  // Content pointer for write/move/restore events: the sha256 that locates the
+  // bytes for this version via the content-addressed blob key. Null for
+  // delete/conflict and for pre-feature events (those versions aren't
+  // restorable/viewable).
+  contentHash String?
+  // The other end of a move. A move writes two events in one transaction: a
+  // `delete` at the old path, carrying the new path here, and a `move` at the
+  // new path, carrying the old one. It is what tells a rename apart from a real
+  // deletion (the trash lists only the latter) and lets recovery follow a file
+  // across renames. Null for every other op, and for moves recorded before the
+  // column existed that the backfill could not pair.
+  relatedPath String?
+  // Who the path was private to when this event was recorded: the owner's
+  // user id, or "" when every member could see it. Null for events recorded
+  // before the column existed. Recovery reads it so content written while
+  // private never reaches someone else, even after the folder is shared or
+  // renamed (neither of which leaves a trail on the file's own events). On an
+  // `access_revoked` it's the grants from just before the change, which is how the
+  // feed tells a former grantee from someone who never had access.
+  privateTo   String?
+  // The recovery operation (trash restore, point-in-time restore, undo) that
+  // produced this event, so the feed can show one "restored 42 files" entry
+  // instead of 42 unexplained writes. Null for ordinary changes.
+  operationId String?
+  // Monotonic, gap-tolerant cursor for incremental sync (BIGSERIAL). Distinct
+  // per row even within one transaction, so a `move`'s two events never collide
+  // on the cursor (unlike createdAt). Serialized to the API as a JS number.
+  seq         BigInt    @default(autoincrement())
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  // createdAt index stays for the time-based, principal-filtered activity panel;
+  // the seq index serves the incremental `?sinceSeq` cursor scan; the
+  // (workspaceId, path, seq) index serves per-path version-history lookups
+  // (readVersion/restore) so they stay indexable as the feed grows.
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, seq])
+  @@index([workspaceId, path, seq])
+  @@map("change_event")
+}
+
+// One recovery run: files brought back from the trash, a folder or the whole
+// workspace restored to a point in time, or one key's changes undone. Every
+// change event it produces carries its id (ChangeEvent.operationId), which is
+// how the activity feed groups and labels them. The counts are what the person
+// who ran it was told; the feed never shows them to anyone else, because they
+// include that person's private files (others count the events they can see).
+model RecoveryOperation {
+  id          String    @id @default(uuid())
+  workspaceId String
+  // trash | restore | undo
+  kind        String
+  // Folder the operation was limited to; null for the whole workspace.
+  scopePath   String?
+  // The point in time restored to, or undone back to.
+  targetAt    DateTime?
+  // The key whose changes were undone, and its label at the time.
+  targetKeyId String?
+  targetLabel String?
+  // Who ran it: the same attribution fields as ChangeEvent.
+  principal   String
+  actorId     String?
+  actorKeyId  String?
+  actorLabel  String?
+  applied     Int       @default(0)
+  skipped     Int       @default(0)
+  failed      Int       @default(0)
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@map("recovery_operation")
+}
+
+// Per-path display metadata (icon) for a file OR folder. Folders aren't stored
+// as files (the tree is synthesized from file paths), so this keys on the raw
+// path and covers both uniformly. Absent → the viewer uses a default icon.
+model NodeMeta {
+  id          String    @id @default(uuid())
+  workspaceId String
+  path        String
+  icon        String? // emoji or Iconify name
+  order       Int? // custom sibling display order within its parent folder
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, path])
+  @@map("node_meta")
+}
+
+// A restriction on one file OR folder (and its subtree, by inheritance). A
+// present row means "only this node's grants may reach it"; absent → inherit
+// from the nearest restricted ancestor, and with none the node is open to every
+// member (open by default). Folders aren't FileNodes (the tree is synthesized
+// from file paths), so this keys on the raw path like NodeMeta. The evaluator is
+// packages/api/server/utils/acl.ts: the most specific restriction wins, and a
+// restriction with no grants admits NOBODY (never everybody), so losing its
+// grant rows can only ever fail closed.
+//
+// "Private" is the special case of a restriction whose only grant is the
+// creator at `write`.
+model NodeAcl {
+  id          String      @id @default(uuid())
+  workspaceId String
+  path        String
+  kind        String // file | folder
+  // DEPRECATED (no longer read): the single owner of a pre-grants private node.
+  // Migrated into a NodeGrant and kept nullable for one release so a rollback,
+  // or an old instance mid-deploy, still recognises the old private rows — and
+  // fails closed on new ones (null matches no user). Drop in a follow-up.
+  ownerId     String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  grants      NodeGrant[]
+
+  @@unique([workspaceId, path])
+  @@index([workspaceId])
+  @@map("node_acl")
+}
+
+// Who may reach a restricted node, and how far. `subject` is "user" (one
+// member, `userId` set) or "everyone" (every other member, `userId` null). A
+// user's own grant beats the everyone grant on the same restriction, so
+// "everyone: read, Bob: none" is expressible. API keys are never grant subjects:
+// a key's scope is a cap stored on the key (see acl.ts), so it can only narrow.
+model NodeGrant {
+  id          String   @id @default(uuid())
+  aclId       String
+  acl         NodeAcl  @relation(fields: [aclId], references: [id], onDelete: Cascade)
+  // Denormalised so a workspace's grants load in one indexed query.
+  workspaceId String
+  subject     String // user | everyone
+  userId      String?
+  level       String // none | read | write
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // One grant per (restriction, user). NULL userIds (the everyone grant) are
+  // distinct under a Postgres unique index, so a second partial unique index in
+  // the migration keeps it to one per restriction.
+  @@unique([aclId, userId])
+  @@index([workspaceId])
+  @@index([userId])
+  @@map("node_grant")
+}
+
+// Device-authorization grant (RFC 8628 adapted) for CLI onboarding. The CLI
+// starts a flow, the user approves it in the web app and picks a workspace, and
+// a workspace-scoped API key is delivered back to the CLI exactly once. The
+// minted key is held AEAD-encrypted (never plaintext) only between approval and
+// the single consuming poll, then nulled.
+model DeviceAuthorization {
+  id              String    @id @default(uuid())
+  // SHA-256 of the device_code the CLI polls with (never store the plaintext).
+  deviceCodeHash  String    @unique
+  // Short, human-typed code shown in the CLI and confirmed in the browser.
+  userCode        String    @unique
+  // pending | approved | consumed | denied | expired
+  status          String    @default("pending")
+  // Bound at approval to the logged-in user (who owns the minted key).
+  userId          String?
+  workspaceId     String?
+  actorType       String    @default("human") // human | agent
+  apiKeyId        String?
+  // AEAD-encrypted minted key (aes-256-gcm); set at approval, nulled on consume.
+  apiKeyCiphertext String?
+  // Slow-down enforcement: reject polls faster than the interval.
+  lastPolledAt    DateTime?
+  expiresAt       DateTime
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([status])
+  @@index([expiresAt])
+  @@map("device_authorization")
+}
+
+// Shareable workspace invite link (no email). A member generates a link for a
+// workspace; whoever opens it (while logged in) joins that workspace and gains
+// access to it — and to nothing else. The token in the link is stored only as a
+// SHA-256 hash. Links are multi-use until they expire, hit maxUses, or are
+// revoked.
+model WorkspaceInvite {
+  id             String    @id @default(uuid())
+  // SHA-256 of the opaque token in the link (never store the plaintext).
+  tokenHash      String    @unique
+  // Denormalized display/bookkeeping copy of the workspace's organization at
+  // mint time. NOT authoritative: accepting resolves the organization through
+  // `workspaceId` (see routes/api/invites/[token]/accept.post.ts), because a
+  // workspace can be re-parented onto a new organization and this column would
+  // then point at the wrong member list.
+  organizationId String
+  // The workspace the inviter shared — for display + post-accept redirect.
+  workspaceId    String
+  role           String    @default("member")
+  createdBy      String // inviter userId
+  expiresAt      DateTime
+  maxUses        Int? // null = unlimited until expiry/revoke
+  uses           Int       @default(0)
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([organizationId])
+  @@map("workspace_invite")
+}
+
+// A share of one file OR one folder (and its subtree). `access` is "member" (a
+// deep link only org members can open — no new access surface) or "public" (an
+// unguessable token link openable without login, optionally password-gated).
+// File shares may pin a specific version: pinnedContentHash locates the exact
+// bytes (content-addressed, immune to version-number reuse) and pinnedVersion is
+// the display label. Revocation is soft (revokedAt); a revoked share is dead on
+// the next read even if an unlock cookie is still held.
+model Share {
+  id                String    @id @default(uuid())
+  workspaceId       String
+  path              String
+  kind              String // file | folder
+  access            String // member | public
+  // Public-link token (≥128-bit, url-safe). Null for member links.
+  token             String?   @unique
+  // scrypt hash ("salt:hash" hex) for password-gated public links. Null = open.
+  passwordHash      String?
+  // File version pin (optional): display label + the content pointer to serve.
+  pinnedVersion     Int?
+  pinnedContentHash String?
+  // Whether a shared HTML page may run its own scripts for visitors. Off unless
+  // a member deliberately turns it on: the visitor is a stranger who cannot
+  // judge the content, so the decision belongs to whoever knows what is in the
+  // file. The sandbox that makes it survivable is the app's (opaque origin, no
+  // cookies) — this flag only says who gets to ask for it.
+  allowScripts      Boolean   @default(false)
+  createdBy         String // userId of the creator
+  createdAt         DateTime  @default(now())
+  revokedAt         DateTime?
+  // Lifetime deduplicated view count and the last time this link was opened.
+  // Denormalised deliberately: ShareViewDay (the dedup ledger) is pruned on a
+  // retention window, and a members-facing "12 views, last opened 2 days ago"
+  // must not silently reset when that runs.
+  viewCount         Int       @default(0)
+  lastViewedAt      DateTime?
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  viewDays          ShareViewDay[]
+
+  @@index([workspaceId, path])
+  @@map("share")
+}
+
+// A comment thread anchored to text in a markdown file. The anchor lives on the
+// thread (replies never re-anchor): the quote/context are raw-markdown
+// substrings captured at creation, `sourceStart/End` are offset hints only
+// (never trusted across versions), and the durable pin is `pinnedContentHash`
+// — content-addressed, immune to version-number reuse after move/delete
+// (`pinnedVersion` is the display label, like Share pins).
+// GC-root invariant: `pinnedContentHash` roots its blob. Any future blob GC
+// must include CommentThread.pinnedContentHash (and
+// FileReadState.lastSeenContentHash) in the workspace root set alongside
+// FileNode.contentHash and Share.pinnedContentHash.
+// `resolved*` and the anchor status are independent axes: a resolved thread can
+// be outdated, and an outdated thread can still be replied to or resolved.
+// The `lastResolved*` columns are a pure cache of the anchor cascade's result
+// for exactly `lastResolvedHash` — nulling them changes no API output, only
+// latency. No unique constraint may include `path`: move() carries threads by
+// path update inside its transaction, and its P2002 catch reports any unique
+// violation as dest_exists.
+model CommentThread {
+  id                String @id @default(uuid())
+  workspaceId       String
+  path              String
+  // Anchor (recorded at creation, against pinned content)
+  anchorKind        String // range | point
+  quote             String // raw-markdown slice ("" for point anchors)
+  contextBefore     String
+  contextAfter      String
+  sourceStart       Int
+  sourceEnd         Int
+  pinnedContentHash String
+  pinnedVersion     Int
+  // Resolution cache (valid only for exactly lastResolvedHash)
+  lastResolvedHash  String?
+  resolvedStart     Int?
+  resolvedEnd       Int?
+  anchorStatus      String? // anchored | ambiguous | outdated
+  // Resolution state (independent of anchor status)
+  resolvedAt         DateTime?
+  resolvedAtVersion  Int?
+  resolvedPrincipal  String? // agent | human
+  resolvedActorId    String?
+  resolvedActorKeyId String?
+  resolvedActorLabel String?
+  // Creator attribution (mirrors ChangeEvent; actorId loose, no FK)
+  principal  String // agent | human
+  actorId    String?
+  actorKeyId String?
+  actorLabel String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  workspace  Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  entries    CommentEntry[]
+
+  @@index([workspaceId, path])
+  @@map("comment_thread")
+}
+
+// A reply within a thread (flat; the thread owns the anchor). Nothing is ever
+// deleted (product rule R3); the cascade below exists only so Workspace
+// deletion can succeed. `dedupeKey` makes agent retries idempotent — the
+// check-then-insert race can only be closed by the database (see Member's
+// unique for the precedent), so the unique constraint is load-bearing: a P2002
+// on insert returns the existing entry as success and emits no second event.
+model CommentEntry {
+  id          String        @id @default(uuid())
+  workspaceId String
+  threadId    String
+  body        String
+  dedupeKey   String?
+  principal   String // agent | human
+  actorId     String?
+  actorKeyId  String?
+  actorLabel  String?
+  createdAt   DateTime      @default(now())
+  thread      CommentThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, dedupeKey])
+  @@index([threadId])
+  @@map("comment_entry")
+}
+
+// Per-user, per-file "last seen" snapshot driving the return recap and the
+// track-changes base. Advance is monotonic on `lastSeenSeq` ONLY — version
+// numbers legitimately reset on move/resurrect, so a version-monotonic guard
+// would wedge the recap. `lastSeenVersion`/`lastSeenContentHash` are the
+// snapshot observed at that seq and are always written in the same statement.
+// The recap trigger compares content hashes (never version numbers), and the
+// track-changes base is fetched by hash — a stale row at a recreated path must
+// degrade to first-visit, not diff a stranger's document.
+// GC-root invariant: `lastSeenContentHash` roots its blob (see CommentThread).
+// `userId` is loose (no FK), mirroring WorkspaceReadState. Rows are not carried
+// on move (accepted staleness; hash-keyed reads make it safe).
+model FileReadState {
+  id                  String    @id @default(uuid())
+  userId              String
+  workspaceId         String
+  path                String
+  lastSeenSeq         BigInt    @default(0)
+  lastSeenVersion     Int
+  lastSeenContentHash String
+  updatedAt           DateTime  @updatedAt
+  workspace           Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId, path])
+  @@index([workspaceId, path])
+  @@map("file_read_state")
+}
+
+// Per-workspace public-share usage for one period. `kind` selects the bucket
+// ("month" | "day") and `period` is the bucket key ("2026-08" / "2026-08-26"),
+// so the monthly published limit and the daily burst backstop share one table.
+//
+// Bytes are BigInt: a 10 GB monthly ceiling does not fit a Postgres Int.
+model ShareUsage {
+  id          String    @id @default(uuid())
+  workspaceId String
+  kind        String // month | day
+  period      String
+  views       Int       @default(0)
+  bytes       BigInt    @default(0)
+  // Notification latches. A ceiling is crossed once but re-tested on every
+  // request, so without these the owner would be emailed per blocked visit.
+  warnedAt    DateTime?
+  pausedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, kind, period])
+  @@index([workspaceId])
+  @@map("share_usage")
+}
+
+// View-deduplication ledger: one row per (share, visitor, day). The unique
+// constraint IS the dedup mechanism — a successful insert means "first view
+// today by this visitor" and a unique violation means "already counted", which
+// makes the decision atomic in Postgres with no coordination.
+//
+// `visitorHash` is a salted daily hash of IP + user-agent, so nothing durable
+// about a visitor is retained and no consent banner is required. Rows are
+// pruned on a retention window; the durable counts live on Share.
+model ShareViewDay {
+  id          String    @id @default(uuid())
+  shareId     String
+  workspaceId String
+  visitorHash String
+  day         String
+  createdAt   DateTime  @default(now())
+  share       Share     @relation(fields: [shareId], references: [id], onDelete: Cascade)
+
+  @@unique([shareId, visitorHash, day])
+  @@index([workspaceId, day])
+  @@index([createdAt])
+  @@map("share_view_day")
+}
+
+// Per-workspace data keys for file-byte encryption at rest, one row per
+// generation. The key itself is never stored in the clear: `wrappedDek` is the
+// DEK sealed under the master key (KEK) named by `kekId`, which lives only in
+// the API's environment. So a dump of this table is inert without that
+// environment.
+//
+// The highest generation is the one new writes use. Older generations stay,
+// read-only, while stored blobs still name them, and are deleted by key
+// maintenance once a scan shows none do (see utils/key-maintenance.ts).
+//
+// Cascade on workspace deletion is crypto-shredding, and it is deliberate:
+// blobs are content-addressed and never garbage-collected, so discarding this
+// row is what actually makes a deleted workspace's bytes unrecoverable. There
+// is no grace period — a future workspace-delete feature that wants "undelete"
+// must introduce soft-delete before it introduces deletion.
+model WorkspaceKey {
+  id          String    @id @default(uuid())
+  workspaceId String
+  // Bumped by a data-key rotation; stamped into each blob's header, which is
+  // how a read finds the key the blob was written under.
+  generation  Int       @default(1)
+  // Which KEK sealed this DEK. Rotating the KEK re-wraps these rows and never
+  // touches a blob.
+  kekId       String
+  wrappedDek  Bytes
+  // When a newer generation replaced this one. Null for the generation in use.
+  retiredAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, generation])
+  @@map("workspace_key")
+}
+
+// The backlink index: one row per markdown file, holding the targets of the
+// links it makes ([[wikilinks]] and relative markdown links). Kept current by
+// the shared file service on every write, move, delete and restore, and rebuilt
+// lazily for any file whose row is missing or was built from other bytes (see
+// utils/link-index.ts). Derived data: dropping a row loses nothing.
+//
+// Targets are stored as HMACs (of the workspace id and the key from
+// packages/shared/links.ts), never as written. A link target is file content,
+// and file content is encrypted at rest; a database copy must not be able to
+// read a note's links back out. The HMAC key is derived from the blob master
+// key (BLOB_KEK), which lives in the server's environment and never in the
+// database, so the hashes can't be recomputed from the plaintext paths a dump
+// does contain. Lookups only ever need equality: "which notes ask for any of
+// these keys", computed from the target file's own path.
+model FileLinks {
+  workspaceId String
+  sourcePath  String
+  // The bytes this row was built from. A row whose hash differs from the
+  // file's current one is stale.
+  contentHash String
+  // Which HMAC key built `targets` (the master key's id). After a master-key
+  // rotation the old rows can't be matched, so they count as stale and are
+  // rebuilt the same way.
+  keyId       String
+  targets     String[]
+  // False when the bytes weren't scanned (too big, or unreadable when last
+  // tried): `targets` is then empty, and the note may link anywhere.
+  scanned     Boolean   @default(true)
+  // The note's tags as written, encrypted (AES-GCM under a key derived from
+  // the master key): tags are file content. Their hashed keys are in
+  // `targets`, which is what lookups use; this is only for listing them.
+  tagNames    Bytes?
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, sourcePath])
+  @@index([targets], type: Gin)
+  @@map("file_links")
+}

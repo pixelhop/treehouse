@@ -1,0 +1,271 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  # Cancel superseded runs on a PR, but never cancel in-progress runs on main.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ci:
+    name: Lint, Typecheck & Test
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+
+    # The API and db suites read and write a real database (the server-backed
+    # ones still skip here — api-tests.yml runs those against a live API).
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: treehouse_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # `prisma generate` runs in packages/db's postinstall during install and
+      # only reads the schema; the test step below is what needs the database.
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/treehouse_ci
+      # Test-only values, as in api-tests.yml. The suites read them from the
+      # environment when there is no packages/api/.env.
+      BETTER_AUTH_SECRET: ci-secret-not-used-anywhere-else-0000000000
+      SHARE_COOKIE_SECRET: ci-share-secret-not-used-anywhere-else-000
+      BETTER_AUTH_URL: http://localhost:3010
+      APP_URL: http://localhost:3000
+      BLOB_DIR: .data/blobs
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Dockerfile Node matches .nvmrc
+        # Nothing passes NODE_VERSION as a build arg, so production runs the
+        # Dockerfile's default. It once drifted behind a Node security release.
+        run: |
+          want="$(tr -d '[:space:]' < .nvmrc)"
+          got="$(sed -n 's/^ARG NODE_VERSION=//p' deploy/Dockerfile | tr -d '[:space:]')"
+          if [ "$got" != "$want" ]; then
+            echo "::error file=deploy/Dockerfile::NODE_VERSION is '$got' but .nvmrc is '$want'. Set them to the same version."
+            exit 1
+          fi
+
+      - uses: voidzero-dev/setup-vp@v1.21.1
+        with:
+          node-version-file: .nvmrc
+          cache: true
+
+      - name: Install dependencies
+        # Runs lifecycle scripts (prisma generate for db, nitro prepare for
+        # api/workers, nuxt prepare for app) so the generated types every
+        # downstream step relies on exist before lint and typecheck.
+        run: vp install --frozen-lockfile
+
+      - name: Lint
+        # Fail-early gate. `--quiet` limits the log to errors; warnings are
+        # counted but non-blocking so they can be cleaned up over time.
+        run: vp lint --quiet
+
+      - name: Typecheck
+        # Fans out to every package that declares a `typecheck` script
+        # (nuxt typecheck for the Nuxt apps, tsc --noEmit elsewhere). Packages
+        # without the script are skipped — a new package opts in by adding one.
+        #
+        # --concurrency-limit 1: app and marketing are both Nuxt packages, and
+        # parallel `nuxt typecheck` runs race on the shared vue-tsc npx cache.
+        run: vp run -r --concurrency-limit 1 typecheck
+
+      - name: Migrate the test database
+        run: vp run db#prisma:migrate:deploy
+
+      - name: Test
+        # Native workspace-wide discovery — runs every *.test.ts with no
+        # per-package wiring, so new packages' tests are picked up automatically.
+        run: vp test
+
+  fallow:
+    name: Fallow code health
+    # Whole-repo scores remain advisory. Only newly introduced error-level
+    # audit findings fail this job; inherited findings stay visible as context.
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    env:
+      # prisma generate needs a value but never connects; this job has no database.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - uses: voidzero-dev/setup-vp@v1.21.1
+        with:
+          node-version-file: .nvmrc
+          cache: true
+
+      - name: Install dependencies
+        run: vp install --frozen-lockfile
+
+      - name: Verify Fallow reporting
+        run: vp run test:fallow
+
+      - name: Select comparison base
+        id: comparison
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          IS_PULL_REQUEST: ${{ github.event_name == 'pull_request' }}
+        run: |
+          if [[ -n "$BASE_SHA" && ! "$BASE_SHA" =~ ^0+$ ]]; then
+            base=$(git rev-parse --verify "${BASE_SHA}^{commit}")
+            if [[ "$IS_PULL_REQUEST" == "true" ]]; then
+              base=$(git merge-base "$base" HEAD)
+            fi
+            echo "base=$base" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fallow health (whole repo)
+        id: fallow_health
+        # Keep the action SHA, version input and root package.json pin on the
+        # same release (v3.32.0).
+        uses: fallow-rs/fallow@aaaec796f5449810b9ecf82ed7e62b775d4d1ef3
+        with:
+          version: "3.32.0"
+          command: health
+          args: --score --complexity --file-scores
+          format: json
+          artifacts-dir: .fallow-reports/head
+          auto-changed-since: false
+          fail-on-issues: false
+          comment: false
+          annotations: false
+
+      - name: Full findings and production health
+        run: |
+          vp run fallow:report --output-file "$PWD/.fallow-reports/head/full.json"
+          vp run fallow:production --format json --output-file "$PWD/.fallow-reports/head/production.json"
+
+      # A separate checkout installs the base revision's actual dependencies
+      # and generates its Nuxt/Nitro types. The head CLI and config then analyze
+      # both revisions, so tool/config changes cannot masquerade as code
+      # improvements.
+      - name: Check out comparison base
+        if: steps.comparison.outputs.base != ''
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.comparison.outputs.base }}
+          path: .fallow/base
+          fetch-depth: 1
+
+      - name: Prepare comparison base
+        if: steps.comparison.outputs.base != ''
+        working-directory: .fallow/base
+        run: vp install --frozen-lockfile
+        timeout-minutes: 10
+
+      - name: Score comparison base with head tooling and configuration
+        if: steps.comparison.outputs.base != ''
+        run: |
+          mkdir -p .fallow-reports/base
+          vp exec fallow health --root .fallow/base --config "$PWD/.fallowrc.jsonc" \
+            --score --report-only --format json --output-file "$PWD/.fallow-reports/base/health.json"
+
+      # The audit's own base snapshot is a bare git checkout with no
+      # node_modules or generated types, so pre-existing findings can look
+      # introduced. Baselines from this fully installed base give the audit an
+      # accurate picture of what already existed.
+      - name: Save comparison base baselines for the audit
+        if: steps.comparison.outputs.base != ''
+        run: |
+          base_args=(--root .fallow/base --config "$PWD/.fallowrc.jsonc" --quiet)
+          out=.fallow-reports/base
+          # dead-code exits 1 when the base has findings.
+          vp exec fallow dead-code "${base_args[@]}" \
+            --save-baseline "$PWD/$out/dead-code-baseline.json" > /dev/null || [ $? -eq 1 ]
+          vp exec fallow health "${base_args[@]}" --report-only \
+            --save-baseline "$PWD/$out/health-baseline.json" > /dev/null
+          vp exec fallow dupes "${base_args[@]}" \
+            --save-baseline "$PWD/$out/dupes-baseline.json" > /dev/null
+          for f in dead-code health dupes; do test -s "$out/$f-baseline.json"; done
+
+      # The action caches .fallow, keyed only on package manifests, and every
+      # invocation restores it. Reports and baselines therefore live in
+      # .fallow-reports, so a cache hit can't swap in a previous run's files.
+      # Also keep the disposable checkout and its node_modules out of that
+      # cache and the audit action's manifest hash.
+      - name: Remove comparison checkout
+        if: always() && steps.comparison.outputs.base != ''
+        run: rm -rf -- .fallow/base
+
+      - name: Write score comparison
+        id: summary
+        env:
+          HEAD_RESULTS: ${{ steps.fallow_health.outputs.results }}
+          BASE_RESULTS: ${{ steps.comparison.outputs.base != '' && '.fallow-reports/base/health.json' || '' }}
+          PRODUCTION_RESULTS: .fallow-reports/head/production.json
+          REPORT_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node .github/scripts/fallow-summary.mjs
+
+      - name: Post health score comment
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs');
+            const body = fs.readFileSync('.fallow-reports/summary.md', 'utf8');
+            const marker = '<!-- fallow-health-score -->';
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const existing = comments.find(c => c.user?.type === 'Bot' && c.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      - name: Fallow audit (new findings only)
+        if: steps.comparison.outputs.base != ''
+        uses: fallow-rs/fallow@aaaec796f5449810b9ecf82ed7e62b775d4d1ef3
+        with:
+          version: "3.32.0"
+          command: audit
+          changed-since: ${{ steps.comparison.outputs.base }}
+          # `all` plus baselines, not `new-only`: see the baseline step above.
+          gate: all
+          dead-code-baseline: .fallow-reports/base/dead-code-baseline.json
+          health-baseline: .fallow-reports/base/health-baseline.json
+          dupes-baseline: .fallow-reports/base/dupes-baseline.json
+          artifacts-dir: .fallow-reports/audit
+          comment: false
+          fail-on-issues: true
+
+      - name: Upload Fallow reports
+        uses: actions/upload-artifact@v6
+        if: always()
+        # A convenience copy, not the gate: the audit step above already passed
+        # or failed. GitHub's artifact storage quota filling up (it has, and
+        # takes 6-12h to recalculate) must not turn a clean audit red.
+        continue-on-error: true
+        with:
+          name: fallow-reports
+          # Do not upload the base checkout, caches or generated shell scripts.
+          path: |
+            .fallow-reports/**/*.json
+            .fallow-reports/summary.md
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn

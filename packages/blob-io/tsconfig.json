@@ -1,0 +1,19 @@
+{
+  // Standalone config: consumed as raw TypeScript by the API and the blob
+  // Worker, so it must type-check on its own. Node types only for the
+  // node:crypto and Buffer surface that workerd's nodejs_compat also provides.
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "noUnusedLocals": true
+  },
+  "include": ["src", "test"]
+}

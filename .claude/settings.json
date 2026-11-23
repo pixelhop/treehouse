@@ -1,0 +1,25 @@
+{
+  "worktree": {
+    "baseRef": "head"
+  },
+  "hooks": {
+    "WorktreeRemove": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/dev-env.mjs\" prune"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(pnpm env:status)",
+      "Bash(pnpm env:prune)",
+      "Bash(portless list)",
+      "Bash(portless get:*)"
+    ]
+  }
+}

@@ -1,0 +1,35 @@
+/*
+ * The beta tag: a small wooden garden label, tilted, beside the Treehouse
+ * wordmark on the marketing site, in the app and (through the app) in the
+ * desktop window. One copy, so the two Nuxt apps can't drift apart.
+ *
+ * Wood, not a theme accent, so it stays a plant label whatever the workspace
+ * theme. The string hole is punched with a mask rather than painted in a
+ * background colour, so it reads as a hole on any surface.
+ *
+ * In `components` so Tailwind utilities on the element (e.g. `max-sm:hidden`)
+ * still win; unlayered CSS would beat every layered utility.
+ */
+@layer components {
+  .th-beta-tag {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    height: 20px;
+    padding: 0 9px 0 16px;
+    border-radius: 0 4px 4px 0;
+    background:
+      repeating-linear-gradient(90deg, transparent 0 7px, rgb(138 107 71 / 0.18) 7px 8px),
+      linear-gradient(180deg, #d6aa6b, var(--brand-wood, #c89a5b) 55%, #bd8b4f);
+    color: #fff9ec;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    text-shadow: 0 1px 0 rgb(90 60 30 / 0.35);
+    clip-path: polygon(8px 0, 100% 0, 100% 100%, 8px 100%, 0 50%);
+    mask: radial-gradient(circle at 9px 50%, transparent 2px, #000 2.5px);
+    transform: rotate(-5deg);
+  }
+}

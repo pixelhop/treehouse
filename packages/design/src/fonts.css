@@ -1,0 +1,14 @@
+/*
+ * Treehouse typography stack.
+ *
+ * Fraunces     — variable display serif (warm, bookish, a little storybook).
+ *   Used for: the wordmark, display headlines, large section openers.
+ * Nunito Sans  — variable humanist sans.
+ *   Used for: body, UI, labels, eyebrows — everything that isn't display.
+ * JetBrains Mono — code, file paths, technical labels.
+ *
+ * Loaded from Google Fonts. If we self-host later, replace this @import with
+ * local @font-face declarations — token names stay the same.
+ */
+
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400..700,0..100;1,9..144,400..700,0..100&family=Nunito+Sans:opsz,wght@6..12,400..800&family=JetBrains+Mono:wght@400..700&display=swap");

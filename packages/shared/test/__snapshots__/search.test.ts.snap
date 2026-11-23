@@ -1,0 +1,116 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden corpus > ranks "acme" stably 1`] = `
+[
+  "Clients/acme/notes.md",
+  "Clients/acme/README.md",
+  "Clients/acme/2026-q1-proposal.md",
+  "Clients/acme/invoices/2026-01.pdf",
+]
+`;
+
+exports[`golden corpus > ranks "api" stably 1`] = `
+[
+  "Development/api/endpoints.md",
+  "Development/api/authentication.md",
+]
+`;
+
+exports[`golden corpus > ranks "auth" stably 1`] = `
+[
+  "Development/api/authentication.md",
+]
+`;
+
+exports[`golden corpus > ranks "brand" stably 1`] = `
+[
+  "Design/brand/logo-usage.md",
+  "Design/brand/colour-tokens.md",
+]
+`;
+
+exports[`golden corpus > ranks "cal" stably 1`] = `
+[
+  "Content-Media-Marketing/social/calendar.md",
+  "Clients/acme/2026-q1-proposal.md",
+  "Content-Media-Marketing/blog/launch-post.md",
+]
+`;
+
+exports[`golden corpus > ranks "clinot" stably 1`] = `
+[
+  "Clients/acme/notes.md",
+  "Clients/beta-corp/notes.md",
+  "Clients/beta-corp/contract.pdf",
+]
+`;
+
+exports[`golden corpus > ranks "deploy" stably 1`] = `
+[
+  "Development/runbooks/deploy.md",
+]
+`;
+
+exports[`golden corpus > ranks "design" stably 1`] = `
+[
+  "Design/brand/logo-usage.md",
+  "Design/brand/colour-tokens.md",
+]
+`;
+
+exports[`golden corpus > ranks "inbox" stably 1`] = `
+[
+  "00-Inbox/quick-note.md",
+]
+`;
+
+exports[`golden corpus > ranks "md" stably 1`] = `
+[
+  "Clients/acme/notes.md",
+  "Clients/beta-corp/notes.md",
+  "AGENTS.md",
+  "README.md",
+  "Clients/acme/README.md",
+  "Development/runbooks/deploy.md",
+  "Content-Media-Marketing/social/calendar.md",
+  "reports/2026/q1-report.md",
+  "reports/2026/q2-report.md",
+  "Development/api/endpoints.md",
+]
+`;
+
+exports[`golden corpus > ranks "notes" stably 1`] = `
+[
+  "Clients/acme/notes.md",
+  "Clients/beta-corp/notes.md",
+  "Jozef Private/personal-notes.md",
+  "Design/brand/colour-tokens.md",
+]
+`;
+
+exports[`golden corpus > ranks "proposal" stably 1`] = `
+[
+  "Clients/acme/2026-q1-proposal.md",
+]
+`;
+
+exports[`golden corpus > ranks "q1" stably 1`] = `
+[
+  "reports/2026/q1-report.md",
+  "Clients/acme/2026-q1-proposal.md",
+]
+`;
+
+exports[`golden corpus > ranks "readme" stably 1`] = `
+[
+  "README.md",
+  "Clients/acme/README.md",
+]
+`;
+
+exports[`golden corpus > ranks "report" stably 1`] = `
+[
+  "reports/2026/q1-report.md",
+  "reports/2026/q2-report.md",
+]
+`;

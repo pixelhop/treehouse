@@ -1,0 +1,11 @@
+/**
+ * Turn an arbitrary string into a URL-safe slug.
+ * Auto-imported by Nuxt (`~/utils`), so usable in SFCs without an import.
+ */
+export function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}

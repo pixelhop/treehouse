@@ -1,0 +1,19 @@
+{
+  // The Worker runs on workerd with nodejs_compat. Its own code uses only the
+  // web platform (Request, Response, ReadableStream) plus the R2 surface typed
+  // in src/env.ts; node types cover the node:crypto and Buffer use in blob-io.
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "noUnusedLocals": true
+  },
+  "include": ["src", "test"]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "blob-io",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^6.0.3"
+  },
+  "//": "The stored-blob format, byte ranges and the byte-Worker grant, consumed as raw TypeScript by the API (Node) and the blob Worker (workerd with nodejs_compat). Everything here must run in both, so it uses only the node:crypto and Buffer surface workerd implements."
+}

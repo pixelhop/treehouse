@@ -1,0 +1,23 @@
+{
+  // Standalone config (no framework base to extend, unlike api/workers which
+  // extend Nitro's generated tsconfig). Type-checks the hand-written sources:
+  // index.ts, the Prisma config, the seed script and the schema tests. The
+  // generated Prisma client under ./generated is reached via import and
+  // trusted (skipLibCheck), not linted.
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": ["node"],
+    "lib": ["ESNext"]
+  },
+  "include": ["index.ts", "prisma.config.ts", "prisma/**/*.ts", "test/**/*.ts"],
+  "exclude": ["node_modules", "generated"]
+}

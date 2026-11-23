@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 56" fill="none">
+  <!-- Branch divider motif — a wood branch with three leaf clusters.
+       Horizontal rule between marketing sections. -->
+  <defs>
+    <g id="bl">
+      <path d="M6.4 -16.8 C11.8 -10.8 10.6 -3.2 0 0 C-4.4 -5.8 -2.2 -14 6.4 -16.8 Z"/>
+    </g>
+  </defs>
+  <!-- Branch with a gentle bow and short twig spurs -->
+  <path d="M10 30 C100 24 200 26 240 27 C300 28 400 26 470 22" stroke="#C89A5B" stroke-width="5" stroke-linecap="round"/>
+  <path d="M122 28 L136 17" stroke="#C89A5B" stroke-width="3.6" stroke-linecap="round"/>
+  <path d="M252 27 L266 38" stroke="#C89A5B" stroke-width="3.6" stroke-linecap="round"/>
+  <path d="M362 26 L376 15" stroke="#C89A5B" stroke-width="3.6" stroke-linecap="round"/>
+  <!-- Leaf clusters at the twig tips -->
+  <use href="#bl" fill="#6BA368" transform="translate(136 17) rotate(-42) scale(1.7)"/>
+  <use href="#bl" fill="#A8C5A1" transform="translate(149 23) rotate(38) scale(1.35)"/>
+  <use href="#bl" fill="#2E7D58" transform="translate(266 38) rotate(138) scale(1.6)"/>
+  <use href="#bl" fill="#6BA368" transform="translate(279 32) rotate(215) scale(1.3)"/>
+  <use href="#bl" fill="#A8C5A1" transform="translate(376 15) rotate(-32) scale(1.6)"/>
+  <use href="#bl" fill="#6BA368" transform="translate(389 21) rotate(48) scale(1.3)"/>
+</svg>

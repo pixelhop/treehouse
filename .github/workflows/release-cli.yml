@@ -1,0 +1,337 @@
+name: release-cli
+
+# Builds the single-file `treehouse` binary for each supported platform and
+# publishes a GitHub Release with checksums + an auto-update manifest.
+#
+# Signing is OPTIONAL: when the Apple / Windows signing secrets are present the
+# binaries are Developer-ID-signed + notarized / Authenticode-signed; when they
+# are absent the build still succeeds and ships an ad-hoc-signed (macOS) /
+# unsigned (Windows) binary. SEA cannot cross-compile, so each target builds on
+# its own runner. There is no macOS x64 target (SEA is arm64-only on macOS); a
+# native Intel build would need Bun --compile (deferred).
+
+on:
+  push:
+    tags: ["cli-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: package (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux targets run on Blacksmith (faster/cheaper drop-in runners);
+          # Blacksmith has no macOS/Windows fleet, so those stay GitHub-hosted.
+          # No win32-arm64 target: Windows-on-ARM runs the x64 binary fine under
+          # emulation, so it's not worth a native build + second signing path yet.
+          #
+          # Windows is best-effort (`optional`): it has never been run on a real
+          # machine, and a failed Windows build must not stop a macOS + Linux
+          # release. `publish` requires only the non-optional targets.
+          - { target: darwin-arm64, runner: macos-15 }
+          - { target: linux-arm64, runner: blacksmith-4vcpu-ubuntu-2404-arm }
+          - { target: win32-x64, runner: windows-latest, optional: true }
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.optional == true }}
+    env:
+      # Reference secrets here (job env) so steps can gate on them — `secrets` is
+      # not directly usable in step `if:` conditions.
+      HAS_APPLE_CERT: ${{ secrets.APPLE_CERT_P12 != '' }}
+      HAS_WINDOWS_CERT: ${{ secrets.WINDOWS_CERT_PFX != '' }}
+      HAS_R2: ${{ secrets.R2_DL_ACCESS_KEY_ID != '' }}
+      R2_BUCKET: treehouse-downloads
+      R2_ENDPOINT: https://8e74dde124932bd7ac4b7392b64e9323.r2.cloudflarestorage.com
+      # Per-run staging area, deleted by `publish`. Keyed by run_id (not version)
+      # so a re-run or two concurrent releases can never read each other's files.
+      STAGING_PREFIX: cli/_staging/${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # No `version:` here — it's pinned via `packageManager` in package.json,
+      # and action-setup errors if both are specified.
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      # Install ONLY the cli package and its workspace deps (`cli...`). The full
+      # monorepo install pulls native builds (sharp, better-sqlite3,
+      # @parcel/watcher, msgpackr-extract, workerd) from the app/api/workers
+      # packages that the CLI doesn't need — and some fail to build on the
+      # release runners. Scoping keeps the build lean and reliable.
+      - run: pnpm install --frozen-lockfile --filter cli...
+
+      - name: Build + package binary
+        run: pnpm --filter cli run package
+
+      # ── macOS: Developer ID sign + notarize (only when the cert secret is set) ──
+      - name: Sign + notarize (macOS)
+        if: runner.os == 'macOS' && env.HAS_APPLE_CERT == 'true'
+        env:
+          APPLE_CERT_P12: ${{ secrets.APPLE_CERT_P12 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+          APPLE_SIGN_IDENTITY: ${{ secrets.APPLE_SIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/build.keychain"
+          security create-keychain -p actions "$KEYCHAIN"
+          security set-keychain-settings -lut 900 "$KEYCHAIN"
+          security unlock-keychain -p actions "$KEYCHAIN"
+          security default-keychain -s "$KEYCHAIN"
+          echo "$APPLE_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$APPLE_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k actions "$KEYCHAIN"
+          # The hardened runtime (needed for notarization) forbids JIT unless the
+          # binary is entitled to it, and V8 can't start without it: 0.1.9 was
+          # signed without these and crashed on launch (SIGTRAP in V8::Initialize).
+          codesign --force --options runtime --timestamp \
+            --entitlements packages/cli/build/entitlements.mac.plist \
+            --sign "$APPLE_SIGN_IDENTITY" packages/cli/dist/treehouse
+          ditto -c -k --keepParent packages/cli/dist/treehouse "$RUNNER_TEMP/notarize.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" \
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+          # A bare executable can't be stapled (only .app/.dmg/.pkg); the
+          # notarization ticket is fetched online on first launch.
+
+      - name: Note unsigned (macOS)
+        if: runner.os == 'macOS' && env.HAS_APPLE_CERT != 'true'
+        run: echo "::warning::APPLE_CERT_P12 not set — shipping an ad-hoc-signed macOS binary (Gatekeeper will warn on download; the install script strips quarantine)."
+
+      # ── Windows: Authenticode (only when the cert secret is set) ──
+      - name: Sign (Windows)
+        if: runner.os == 'Windows' && env.HAS_WINDOWS_CERT == 'true'
+        shell: pwsh
+        env:
+          WINDOWS_CERT_PFX: ${{ secrets.WINDOWS_CERT_PFX }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\cert.pfx", [Convert]::FromBase64String($env:WINDOWS_CERT_PFX))
+          $signtool = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" | Select-Object -Last 1).FullName
+          & $signtool sign /f "$env:RUNNER_TEMP\cert.pfx" /p $env:WINDOWS_CERT_PASSWORD `
+            /tr http://timestamp.digicert.com /td sha256 /fd sha256 packages\cli\dist\treehouse.exe
+
+      - name: Note unsigned (Windows)
+        if: runner.os == 'Windows' && env.HAS_WINDOWS_CERT != 'true'
+        run: echo "::warning::WINDOWS_CERT_PFX not set — shipping an unsigned Windows binary (SmartScreen will warn)."
+
+      # Run the binary exactly as it will ship, after signing. A signature can
+      # be valid and the binary still unable to start (0.1.9 on macOS), and
+      # nothing else in this workflow executes what it publishes.
+      - name: Smoke test the signed binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin=packages/cli/dist/treehouse
+          [ "${{ runner.os }}" = "Windows" ] && bin=packages/cli/dist/treehouse.exe
+          want="$(node -p "require('./packages/cli/package.json').version")"
+          got="$("$bin" version)"
+          echo "built ${{ matrix.target }}: $got"
+          [ "$got" = "$want" ] || { echo "::error::$bin version printed '$got', expected '$want'"; exit 1; }
+
+      - name: Stage artifact
+        shell: bash
+        run: |
+          mkdir -p out
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp packages/cli/dist/treehouse.exe "out/treehouse-${{ matrix.target }}.exe"
+          else
+            cp packages/cli/dist/treehouse "out/treehouse-${{ matrix.target }}"
+          fi
+
+      # ── Hand the binary to `publish` via R2, not GitHub artifact storage ──
+      # A release must not be able to fail because a storage quota is full. The
+      # v0.1.8 release did exactly that: every target built, signed and
+      # notarized, then died on "Artifact storage quota has been hit", and the
+      # quota takes 6-12h to recalculate even after deleting everything. R2 is
+      # already on the critical path (it IS the distribution channel), so
+      # staging there removes a dependency instead of adding one.
+      #
+      # Staged under a per-run prefix, NOT the published path: only `publish`
+      # writes anywhere a user can see, and it cleans the staging area up after.
+      - name: Ensure aws cli (macOS)
+        if: runner.os == 'macOS' && env.HAS_R2 == 'true'
+        shell: bash
+        run: command -v aws >/dev/null || brew install awscli
+
+      - name: Stage binary to R2
+        if: env.HAS_R2 == 'true'
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_DL_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_DL_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          AWS_MAX_ATTEMPTS: "10"
+          AWS_RETRY_MODE: standard
+        run: |
+          set -euo pipefail
+          aws configure set default.s3.multipart_threshold 1024MB
+          aws s3 cp out/ "s3://${R2_BUCKET}/${STAGING_PREFIX}/" --recursive \
+            --endpoint-url "$R2_ENDPOINT" --only-show-errors
+          echo "staged $(ls out) at ${STAGING_PREFIX}/"
+
+      # Kept as a convenience (a dispatch run with no R2 creds still yields
+      # something downloadable), but NEVER fatal: with staging on R2 the release
+      # no longer needs it, so a full quota must not stop the build.
+      - uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: treehouse-${{ matrix.target }}
+          path: out/*
+          retention-days: 1
+
+  publish:
+    needs: package
+    # Runs even when an optional (Windows) package job failed. A failed REQUIRED
+    # target is caught by "Check required binaries" below instead.
+    if: ${{ !cancelled() }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    env:
+      # Must match the non-optional `package` matrix targets. Optional targets
+      # are published when they built and skipped (with a warning) when not.
+      REQUIRED_TARGETS: darwin-arm64 linux-arm64
+      OPTIONAL_TARGETS: win32-x64
+      # Public download host (R2 custom domain) baked into latest.json + installers.
+      DL_BASE_URL: https://dl.trytree.house
+      R2_BUCKET: treehouse-downloads
+      R2_ENDPOINT: https://8e74dde124932bd7ac4b7392b64e9323.r2.cloudflarestorage.com
+      STAGING_PREFIX: cli/_staging/${{ github.run_id }}
+      # Gate the R2 upload on the credential being present (job env so steps can `if:` it).
+      HAS_R2: ${{ secrets.R2_DL_ACCESS_KEY_ID != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Collect the per-target binaries the package jobs staged in R2. The
+      # artifact download stays as the no-credentials fallback, so a fork or a
+      # secretless dispatch run still produces a GitHub release.
+      - name: Collect staged binaries from R2
+        if: env.HAS_R2 == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_DL_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_DL_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          AWS_MAX_ATTEMPTS: "10"
+          AWS_RETRY_MODE: standard
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          aws s3 cp "s3://${R2_BUCKET}/${STAGING_PREFIX}/" dist/ --recursive \
+            --endpoint-url "$R2_ENDPOINT" --only-show-errors
+
+      - uses: actions/download-artifact@v4
+        if: env.HAS_R2 != 'true'
+        with:
+          path: dist
+          merge-multiple: true
+
+      # The manifest is built from whatever is in dist/, so this is what stops a
+      # release silently advertising fewer platforms than it should.
+      - name: Check required binaries
+        run: |
+          set -euo pipefail
+          missing=0
+          for t in $REQUIRED_TARGETS; do
+            [ -e dist/treehouse-"$t" ] || [ -e dist/treehouse-"$t".exe ] \
+              || { echo "::error::required target $t did not build"; missing=1; }
+          done
+          for t in $OPTIONAL_TARGETS; do
+            [ -e dist/treehouse-"$t" ] || [ -e dist/treehouse-"$t".exe ] \
+              || echo "::warning::optional target $t did not build — publishing without it"
+          done
+          ls -la dist
+          exit "$missing"
+
+      - name: Checksums + manifest
+        id: meta
+        run: |
+          set -euo pipefail
+          cd dist
+          shasum -a 256 treehouse-* > SHA256SUMS
+          if [[ "${GITHUB_REF_NAME}" == cli-v* ]]; then
+            VERSION="${GITHUB_REF_NAME#cli-v}"
+          else
+            VERSION="$(node -p "require('${GITHUB_WORKSPACE}/packages/cli/package.json').version")"
+          fi
+          node "${GITHUB_WORKSPACE}/scripts/make-latest-json.mjs" "$VERSION" SHA256SUMS > latest.json
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "----- SHA256SUMS -----"; cat SHA256SUMS
+          echo "----- latest.json -----"; cat latest.json
+
+      # ── Publish to the public R2 download bucket (the actual install source) ──
+      - name: Upload to R2
+        if: env.HAS_R2 == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_DL_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_DL_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          # aws-cli v2 sends integrity checksums R2 rejects; only send when required.
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          # R2 intermittently 504s on multipart UploadPart; retry generously.
+          AWS_MAX_ATTEMPTS: "10"
+          AWS_RETRY_MODE: standard
+        run: |
+          set -euo pipefail
+          cd dist
+          V="${{ steps.meta.outputs.version }}"
+          # Send the ~100MB binaries as a single PutObject (threshold above their
+          # size) instead of multipart, which is where R2's 504s happen.
+          aws configure set default.s3.multipart_threshold 1024MB
+          aws configure set default.s3.max_concurrent_requests 4
+          put() { # <file> <key> <cache-control>
+            aws s3 cp "$1" "s3://${R2_BUCKET}/$2" \
+              --endpoint-url "$R2_ENDPOINT" --cache-control "$3" --only-show-errors
+          }
+          for f in treehouse-* SHA256SUMS latest.json; do
+            # Versioned copy is immutable; the latest/ pointer is short-cached so
+            # updates propagate quickly.
+            put "$f" "cli/v${V}/$f" "public, max-age=31536000, immutable"
+            put "$f" "cli/latest/$f"  "public, max-age=300"
+          done
+          # Host the install scripts at the bucket root so the public one-liner
+          # (curl dl.trytree.house/install.sh | sh) needs no GitHub access.
+          put "${GITHUB_WORKSPACE}/scripts/install.sh"  "install.sh"  "public, max-age=300"
+          put "${GITHUB_WORKSPACE}/scripts/install.ps1" "install.ps1" "public, max-age=300"
+          echo "Uploaded binaries to ${DL_BASE_URL}/cli/latest/ and /cli/v${V}/; installers to ${DL_BASE_URL}/{install.sh,install.ps1}"
+
+      - name: Note R2 skipped
+        if: env.HAS_R2 != 'true'
+        run: echo "::warning::R2_DL_ACCESS_KEY_ID not set — skipping R2 upload. Binaries are only on the private GitHub release and won't be publicly downloadable."
+
+      # Leaving staging behind would recreate the problem this change fixes, one
+      # bucket over. `always()` so a failed publish doesn't strand ~130 MB per run.
+      - name: Clean up staging
+        if: always() && env.HAS_R2 == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_DL_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_DL_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+        run: |
+          aws s3 rm "s3://${R2_BUCKET}/${STAGING_PREFIX}/" --recursive \
+            --endpoint-url "$R2_ENDPOINT" --only-show-errors || true
+
+      # GitHub Release stays as a backup + authenticated-download path (private repo).
+      - name: GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: cli-v${{ steps.meta.outputs.version }}
+          name: treehouse CLI v${{ steps.meta.outputs.version }}
+          files: |
+            dist/treehouse-*
+            dist/SHA256SUMS
+            dist/latest.json

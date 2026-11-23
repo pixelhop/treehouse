@@ -1,0 +1,7 @@
+# Local secrets for `pnpm --filter blob-worker dev` (wrangler dev). Copy to
+# .dev.vars, which is gitignored. The key must equal the API's
+# BLOB_WORKER_TOKEN_KEY. Generate one with: printf "t1:$(openssl rand -base64 32)"
+BLOB_WORKER_TOKEN_KEY=""
+# Overrides the production value in wrangler.jsonc so share-link byte reports
+# reach your local API.
+USAGE_REPORT_URL="http://localhost:3010/api/internal/blob-usage"

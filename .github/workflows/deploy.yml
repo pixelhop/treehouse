@@ -1,0 +1,63 @@
+# Builds the image and deploys it with Canine.
+# main -> production, staging -> staging. Images carry no secrets: env is injected at runtime.
+name: Deploy
+
+on:
+  push:
+    branches: [main, staging]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  deploy:
+    # Manual runs too: only main and staging deploy (any other branch would overwrite staging).
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    env:
+      ENV_TAG: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+      PROJECT: ${{ github.ref_name == 'main' && 'treehouse-prod' || 'treehouse-staging' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: useblacksmith/setup-docker-builder@v1
+      - uses: useblacksmith/build-push-action@v2
+        with:
+          context: .
+          file: deploy/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/pixelhop/treehouse:${{ env.ENV_TAG }}
+            ghcr.io/pixelhop/treehouse:${{ github.sha }}
+      - name: Deploy with Canine
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          CANINE_API_KEY: ${{ secrets.CANINE_API_KEY }}
+        run: |
+          set -euo pipefail
+          canine() {
+            curl --fail-with-body -sS -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
+              -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -H "X-API-Key: $CANINE_API_KEY" "$@"
+          }
+          build="$(canine -X POST "https://canine.pixelhop.io/api/v1/projects/$PROJECT/deploy" | jq -r .build_id)"
+          for i in $(seq 1 90); do
+            sleep 10
+            status="$(canine "https://canine.pixelhop.io/api/v1/builds/$build" | jq -r '.deployment.status // "pending"')"
+            echo "deployment: $status"
+            case "$status" in
+              completed) exit 0 ;;
+              failed|killed) echo "::error::$PROJECT deploy $status, see Canine"; exit 1 ;;
+            esac
+          done
+          echo "::error::$PROJECT did not finish in 15 minutes"; exit 1

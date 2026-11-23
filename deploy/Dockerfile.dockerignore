@@ -1,0 +1,17 @@
+# BuildKit reads this for deploy/Dockerfile (the context is the repo root).
+**/node_modules
+**/.output
+**/.nitro
+**/.nuxt
+**/.wrangler
+**/.data
+**/.env
+**/.env.*
+!**/.env.example
+.git
+packages/app
+packages/marketing
+packages/desktop
+packages/cli
+packages/design
+docs

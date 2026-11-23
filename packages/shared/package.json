@@ -1,0 +1,22 @@
+{
+  "name": "shared",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./linkScan": "./linkScan.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "markdown-it": "^15.0.3",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}

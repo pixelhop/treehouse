@@ -1,0 +1,33 @@
+{
+  "name": "db",
+  "version": "1.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:create-only": "prisma migrate dev --create-only",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:push": "prisma db push --skip-generate",
+    "typecheck": "tsc --noEmit",
+    "prisma:seed": "tsx prisma/seed.ts",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "postinstall": "prisma generate",
+    "nuke:dependencies": "rm -rf node_modules"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "dotenv": "^18.0.7",
+    "prisma": "^7.10.1",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3"
+  }
+}

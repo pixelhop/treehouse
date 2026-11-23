@@ -1,0 +1,50 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary", "verdict", "findings"],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "Two to five sentences: what the PR does and your overall assessment."
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["approve", "comment", "request_changes"]
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "line", "start_line", "severity", "title", "body", "suggestion"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Repo-relative path of the file in the PR head."
+          },
+          "line": {
+            "type": "integer",
+            "description": "Line number in the PR head version of the file (last line of the range)."
+          },
+          "start_line": {
+            "type": ["integer", "null"],
+            "description": "First line of a multi-line range, or null for a single line."
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["blocker", "major", "minor", "nit"]
+          },
+          "title": { "type": "string", "description": "One-line statement of the defect." },
+          "body": {
+            "type": "string",
+            "description": "Concrete failure scenario (inputs/state -> wrong result) and the fix you recommend."
+          },
+          "suggestion": {
+            "type": ["string", "null"],
+            "description": "Exact replacement text for lines start_line..line, or null. Only when certain."
+          }
+        }
+      }
+    }
+  }
+}

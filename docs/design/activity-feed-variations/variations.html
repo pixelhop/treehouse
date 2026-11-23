@@ -1,0 +1,981 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Activity feed — design explorations</title>
+    <style>
+      :root {
+        --app: #f6f6f4;
+        --surface: #ffffff;
+        --surface-2: #f1f1ee;
+        --surface-3: #eceae4;
+        --fg: #1c1b19;
+        --fg-muted: #5f5e58;
+        --fg-subtle: #92908a;
+        --border: #e6e4de;
+        --border-strong: #d7d4cc;
+        --accent: #3b6ef5;
+        --accent-fg: #ffffff;
+        --accent-soft: #e9effe;
+        --agent: #6d5ae6;
+        --agent-soft: #ece9fb;
+        --agent-strong: #4a3bb0;
+        --human: #2f9e6f;
+        --human-soft: #e3f4ec;
+        --human-strong: #1d6e4d;
+        --warning: #c2790f;
+        --warning-soft: #fbefda;
+        --warning-strong: #8a560a;
+        --danger: #d1453b;
+        --danger-soft: #fbe7e5;
+        --shadow: 0 1px 2px rgba(20, 20, 19, 0.04), 0 4px 16px rgba(20, 20, 19, 0.06);
+        --radius: 10px;
+        --radius-lg: 14px;
+        --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+        --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      [data-theme="dark"] {
+        --app: #16161a;
+        --surface: #1e1e24;
+        --surface-2: #26262d;
+        --surface-3: #2f2f37;
+        --fg: #ececef;
+        --fg-muted: #a6a6b0;
+        --fg-subtle: #6f6f7a;
+        --border: #2e2e36;
+        --border-strong: #3a3a44;
+        --accent: #6f93f7;
+        --accent-fg: #0d1018;
+        --accent-soft: #212a40;
+        --agent: #a99bf2;
+        --agent-soft: #272246;
+        --agent-strong: #c7bdf8;
+        --human: #5cc79a;
+        --human-soft: #16382c;
+        --human-strong: #82dcb4;
+        --warning: #e0a64a;
+        --warning-soft: #3a2c12;
+        --warning-strong: #f0c483;
+        --danger: #ec6a60;
+        --danger-soft: #3a1f1c;
+        --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(0, 0, 0, 0.35);
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: var(--app);
+        color: var(--fg);
+        font-family: var(--font);
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+      }
+      /* top control bar */
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        padding: 14px 22px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+      }
+      .topbar h1 {
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .topbar .sub {
+        font-size: 13px;
+        color: var(--fg-subtle);
+      }
+      .seg {
+        display: flex;
+        gap: 2px;
+        padding: 3px;
+        background: var(--surface-2);
+        border-radius: var(--radius);
+      }
+      .seg button {
+        appearance: none;
+        border: 0;
+        background: transparent;
+        color: var(--fg-muted);
+        font: inherit;
+        font-size: 13px;
+        padding: 6px 13px;
+        border-radius: 7px;
+        cursor: pointer;
+        transition: 0.12s;
+      }
+      .seg button:hover {
+        color: var(--fg);
+      }
+      .seg button[aria-selected="true"] {
+        background: var(--surface);
+        color: var(--fg);
+        font-weight: 500;
+        box-shadow: var(--shadow);
+      }
+      .spacer {
+        flex: 1;
+      }
+      .iconbtn {
+        appearance: none;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--fg-muted);
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        cursor: pointer;
+        font-size: 15px;
+        display: grid;
+        place-items: center;
+      }
+      .iconbtn:hover {
+        color: var(--fg);
+        border-color: var(--border-strong);
+      }
+      .stage {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 26px 22px 80px;
+        display: grid;
+        grid-template-columns: 1fr 320px;
+        gap: 26px;
+        align-items: start;
+      }
+      @media (max-width: 880px) {
+        .stage {
+          grid-template-columns: 1fr;
+        }
+      }
+      .panel {
+        display: none;
+      }
+      .panel.active {
+        display: block;
+        animation: fade 0.2s ease;
+      }
+      @keyframes fade {
+        from {
+          opacity: 0;
+          transform: translateY(4px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      .feedcard {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+      }
+      .feedhead {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border);
+      }
+      .feedhead .crumb {
+        font-size: 13px;
+        color: var(--fg-subtle);
+      }
+      .feedhead .crumb b {
+        color: var(--fg);
+        font-weight: 600;
+      }
+      .mark {
+        appearance: none;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--fg-muted);
+        font: inherit;
+        font-size: 12.5px;
+        padding: 5px 11px;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      .mark:hover {
+        color: var(--fg);
+        border-color: var(--border-strong);
+      }
+      .feedbody {
+        padding: 14px 18px 20px;
+      }
+      .av {
+        flex: none;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      .av.agent {
+        background: var(--agent-soft);
+        color: var(--agent-strong);
+      }
+      .av.human {
+        background: var(--human-soft);
+        color: var(--human-strong);
+      }
+      .tag {
+        font-size: 11px;
+        font-weight: 600;
+        padding: 1px 7px;
+        border-radius: 99px;
+        letter-spacing: 0.02em;
+      }
+      .tag.agent {
+        background: var(--agent-soft);
+        color: var(--agent-strong);
+      }
+      .tag.human {
+        background: var(--human-soft);
+        color: var(--human-strong);
+      }
+      .tag.warn {
+        background: var(--warning-soft);
+        color: var(--warning-strong);
+      }
+      .file {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--fg-muted);
+      }
+      .daylabel {
+        font-size: 11.5px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--fg-subtle);
+      }
+      .chev {
+        transition: transform 0.15s;
+        color: var(--fg-subtle);
+        font-size: 13px;
+      }
+      .open .chev {
+        transform: rotate(90deg);
+      }
+      .sub {
+        display: none;
+      }
+      .open .sub {
+        display: block;
+      }
+      /* drawer card */
+      .drawer {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+        position: sticky;
+        top: 84px;
+      }
+      .drawer .dh {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 13px 16px;
+        border-bottom: 1px solid var(--border);
+      }
+      .drawer .dh b {
+        font-size: 13.5px;
+        font-weight: 600;
+      }
+      .drawer .dh .count {
+        font-size: 11px;
+        font-weight: 600;
+        background: var(--accent);
+        color: var(--accent-fg);
+        border-radius: 99px;
+        padding: 1px 7px;
+      }
+      .drawer .df {
+        padding: 10px 14px;
+        border-top: 1px solid var(--border);
+        text-align: center;
+      }
+      .drawer .df a {
+        font-size: 13px;
+        color: var(--accent);
+        font-weight: 500;
+        text-decoration: none;
+      }
+      .newline {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 6px 2px 12px;
+      }
+      .newline::before,
+      .newline::after {
+        content: "";
+        height: 1px;
+        flex: 1;
+        background: var(--accent);
+        opacity: 0.4;
+      }
+      .newline span {
+        font-size: 10.5px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--accent);
+      }
+      .legend {
+        margin-top: 14px;
+        font-size: 12px;
+        color: var(--fg-subtle);
+        padding: 0 4px;
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .legend i {
+        display: inline-block;
+        width: 9px;
+        height: 9px;
+        border-radius: 3px;
+        vertical-align: -1px;
+        margin-right: 5px;
+      }
+      .note {
+        grid-column: 1/-1;
+        font-size: 13px;
+        color: var(--fg-muted);
+        background: var(--surface-2);
+        border-radius: var(--radius);
+        padding: 12px 16px;
+        line-height: 1.6;
+      }
+
+      /* ---------- V1 TIMELINE ---------- */
+      .v1 .tl {
+        position: relative;
+        padding-left: 30px;
+      }
+      .v1 .tl::before {
+        content: "";
+        position: absolute;
+        left: 9px;
+        top: 6px;
+        bottom: 6px;
+        width: 2px;
+        background: var(--border);
+      }
+      .v1 .ev {
+        position: relative;
+        padding: 11px 0 11px 6px;
+      }
+      .v1 .dot {
+        position: absolute;
+        left: -26px;
+        top: 15px;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 2px solid var(--surface);
+        background: var(--fg-subtle);
+        box-shadow: 0 0 0 2px var(--border);
+      }
+      .v1 .dot.agent {
+        background: var(--agent);
+      }
+      .v1 .dot.human {
+        background: var(--human);
+      }
+      .v1 .dot.warn {
+        background: var(--warning);
+      }
+      .v1 .top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+      }
+      .v1 .name {
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .v1 .meta {
+        font-size: 12.5px;
+        color: var(--fg-subtle);
+        margin-top: 2px;
+      }
+      .v1 .meta .op {
+        color: var(--fg-muted);
+        font-weight: 500;
+      }
+      .v1 .meta .op.warn {
+        color: var(--warning-strong);
+      }
+      .v1 .sub .si {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        font-size: 12.5px;
+        color: var(--fg-muted);
+        padding: 5px 0 5px 2px;
+      }
+      .v1 .sub .si .file {
+        color: var(--fg-muted);
+      }
+      .v1 .day {
+        margin: 4px 0 8px;
+      }
+
+      /* ---------- V2 CARDS ---------- */
+      .v2 .stackcard {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 14px 16px;
+        margin-bottom: 12px;
+        transition: 0.12s;
+        cursor: pointer;
+      }
+      .v2 .stackcard:hover {
+        border-color: var(--border-strong);
+        box-shadow: var(--shadow);
+      }
+      .v2 .stackcard.warn {
+        border-left: 3px solid var(--warning);
+      }
+      .v2 .row {
+        display: flex;
+        gap: 13px;
+        align-items: flex-start;
+      }
+      .v2 .name {
+        font-size: 14.5px;
+        font-weight: 500;
+      }
+      .v2 .meta {
+        font-size: 12.5px;
+        color: var(--fg-subtle);
+        margin-top: 3px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .v2 .sub {
+        margin: 12px 0 0 53px;
+        border-left: 1px solid var(--border);
+        padding-left: 14px;
+      }
+      .v2 .sub .si {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        font-size: 12.5px;
+        color: var(--fg-muted);
+        padding: 4px 0;
+      }
+      .v2 .day {
+        margin: 2px 2px 12px;
+      }
+
+      /* ---------- V3 COMPACT ---------- */
+      .v3 .list {
+        border-radius: var(--radius);
+        overflow: hidden;
+      }
+      .v3 .r {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 12px;
+        border-bottom: 1px solid var(--border);
+        cursor: pointer;
+        font-size: 13px;
+      }
+      .v3 .r:hover {
+        background: var(--surface-2);
+      }
+      .v3 .r:last-child {
+        border-bottom: 0;
+      }
+      .v3 .ic {
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+        display: grid;
+        place-items: center;
+        font-size: 12px;
+        flex: none;
+      }
+      .v3 .ic.agent {
+        background: var(--agent-soft);
+        color: var(--agent-strong);
+      }
+      .v3 .ic.human {
+        background: var(--human-soft);
+        color: var(--human-strong);
+      }
+      .v3 .ic.warn {
+        background: var(--warning-soft);
+        color: var(--warning-strong);
+      }
+      .v3 .nm {
+        font-weight: 500;
+      }
+      .v3 .op {
+        color: var(--fg-muted);
+      }
+      .v3 .op.warn {
+        color: var(--warning-strong);
+        font-weight: 500;
+      }
+      .v3 .time {
+        margin-left: auto;
+        color: var(--fg-subtle);
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      .v3 .sub .si {
+        padding-left: 44px;
+        font-size: 12.5px;
+        color: var(--fg-muted);
+        background: var(--surface-2);
+      }
+      .v3 .day {
+        padding: 10px 12px 6px;
+      }
+
+      /* ---------- V4 INBOX ---------- */
+      .v4 .item {
+        display: flex;
+        gap: 13px;
+        align-items: flex-start;
+        padding: 13px 16px 13px 13px;
+        border-bottom: 1px solid var(--border);
+        cursor: pointer;
+        border-left: 3px solid transparent;
+      }
+      .v4 .item:hover {
+        background: var(--surface-2);
+      }
+      .v4 .item.unread {
+        border-left-color: var(--accent);
+        background: color-mix(in srgb, var(--accent-soft) 55%, transparent);
+      }
+      .v4 .item.warn.unread {
+        border-left-color: var(--warning);
+      }
+      .v4 .name {
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .v4 .item.unread .name {
+        font-weight: 600;
+      }
+      .v4 .meta {
+        font-size: 12.5px;
+        color: var(--fg-subtle);
+        margin-top: 2px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .v4 .dotnew {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--accent);
+        margin-left: auto;
+        margin-top: 6px;
+        flex: none;
+      }
+      .v4 .sub {
+        margin: 10px 0 0 53px;
+        padding-left: 13px;
+        border-left: 1px solid var(--border);
+      }
+      .v4 .sub .si {
+        font-size: 12.5px;
+        color: var(--fg-muted);
+        padding: 4px 0;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .v4 .seclabel {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--fg-subtle);
+        padding: 14px 16px 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <span class="sr-only"
+      >Four polished design variations of the Treehouse activity feed, with a variation switcher and
+      a light/dark toggle.</span
+    >
+
+    <div class="topbar">
+      <div>
+        <h1>Activity feed — design explorations</h1>
+        <div class="sub">Same data, four directions. Pick one and I'll build it for real.</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="seg" role="tablist" aria-label="Design variation">
+        <button role="tab" aria-selected="true" data-v="v1">Timeline</button>
+        <button role="tab" aria-selected="false" data-v="v2">Cards</button>
+        <button role="tab" aria-selected="false" data-v="v3">Compact</button>
+        <button role="tab" aria-selected="false" data-v="v4">Inbox</button>
+      </div>
+      <button class="iconbtn" id="theme" aria-label="Toggle dark mode" title="Toggle light / dark">
+        ☾
+      </button>
+    </div>
+
+    <div class="stage">
+      <!-- ============ V1 TIMELINE ============ -->
+      <section class="panel active v1" data-v="v1" aria-label="Timeline variation">
+        <div class="feedcard">
+          <div class="feedhead">
+            <div class="crumb">Demo Workspace · <b>Activity</b></div>
+            <button class="mark">Mark all seen</button>
+          </div>
+          <div class="feedbody">
+            <div class="day daylabel">Today</div>
+            <div class="newline"><span>New since you were here</span></div>
+            <div class="tl">
+              <div class="ev">
+                <span class="dot warn"></span>
+                <div class="top">
+                  <span class="name">Demo User</span><span class="tag warn">conflict</span>
+                </div>
+                <div class="meta">
+                  <span class="op warn">created a conflicted copy</span> · v1 · 3m ago
+                </div>
+                <div class="meta file">roadmap (conflicted copy — human — …).md</div>
+              </div>
+              <div class="ev open" onclick="this.classList.toggle('open')">
+                <span class="dot agent"></span>
+                <div class="top">
+                  <span class="name">Demo User</span><span class="tag agent">claude-code</span
+                  ><span class="chev">›</span>
+                </div>
+                <div class="meta"><span class="op">made 7 changes</span> · 14m ago</div>
+                <div class="sub">
+                  <div class="si"><span class="file">research/notes-1.md</span> wrote</div>
+                  <div class="si"><span class="file">research/notes-2.md</span> wrote</div>
+                  <div class="si" style="color: var(--fg-subtle)">+4 more files wrote</div>
+                  <div class="si">
+                    <span class="op warn" style="color: var(--warning-strong)">conflict</span>
+                    <span class="file">README (conflicted copy — agent — …).md</span>
+                  </div>
+                </div>
+              </div>
+              <div class="ev" onclick="this.classList.toggle('open')">
+                <span class="dot human"></span>
+                <div class="top">
+                  <span class="name">Demo User</span><span class="chev">›</span>
+                </div>
+                <div class="meta"><span class="op">wrote 2 files</span> · 14m ago</div>
+                <div class="sub">
+                  <div class="si"><span class="file">README.md</span></div>
+                  <div class="si"><span class="file">roadmap.md</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="legend">
+          <span><i style="background: var(--agent)"></i>agent</span
+          ><span><i style="background: var(--human)"></i>you / human</span
+          ><span><i style="background: var(--warning)"></i>conflict</span>
+        </div>
+      </section>
+
+      <!-- ============ V2 CARDS ============ -->
+      <section class="panel v2" data-v="v2" aria-label="Cards variation">
+        <div class="feedcard">
+          <div class="feedhead">
+            <div class="crumb">Demo Workspace · <b>Activity</b></div>
+            <button class="mark">Mark all seen</button>
+          </div>
+          <div class="feedbody">
+            <div class="day daylabel">Today</div>
+            <div class="newline"><span>New since you were here</span></div>
+            <div class="stackcard warn">
+              <div class="row">
+                <div class="av human" style="width: 40px; height: 40px; font-size: 13px">DU</div>
+                <div style="flex: 1">
+                  <div class="name">Demo User <span class="tag warn">conflict</span></div>
+                  <div class="meta">created a conflicted copy · v1 · 3m ago</div>
+                  <div class="meta">
+                    <span class="file">roadmap (conflicted copy — human — …).md</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="stackcard open" onclick="this.classList.toggle('open')">
+              <div class="row">
+                <div class="av agent" style="width: 40px; height: 40px; font-size: 13px">DU</div>
+                <div style="flex: 1">
+                  <div class="name">Demo User <span class="tag agent">via claude-code</span></div>
+                  <div class="meta">made 7 changes · 14m ago <span class="chev">›</span></div>
+                </div>
+              </div>
+              <div class="sub">
+                <div class="si">
+                  <span class="tag agent" style="font-size: 10px">wrote</span
+                  ><span class="file">research/notes-1.md</span>
+                </div>
+                <div class="si">
+                  <span class="tag agent" style="font-size: 10px">wrote</span
+                  ><span class="file">research/notes-2.md … +4</span>
+                </div>
+                <div class="si">
+                  <span class="tag warn" style="font-size: 10px">conflict</span
+                  ><span class="file">README (conflicted copy — agent — …).md</span>
+                </div>
+              </div>
+            </div>
+            <div class="stackcard" onclick="this.classList.toggle('open')">
+              <div class="row">
+                <div class="av human" style="width: 40px; height: 40px; font-size: 13px">DU</div>
+                <div style="flex: 1">
+                  <div class="name">Demo User</div>
+                  <div class="meta">wrote 2 files · 14m ago <span class="chev">›</span></div>
+                </div>
+              </div>
+              <div class="sub">
+                <div class="si">
+                  <span class="tag human" style="font-size: 10px">wrote</span
+                  ><span class="file">README.md</span>
+                </div>
+                <div class="si">
+                  <span class="tag human" style="font-size: 10px">wrote</span
+                  ><span class="file">roadmap.md</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ V3 COMPACT ============ -->
+      <section class="panel v3" data-v="v3" aria-label="Compact variation">
+        <div class="feedcard">
+          <div class="feedhead">
+            <div class="crumb">Demo Workspace · <b>Activity</b></div>
+            <button class="mark">Mark all seen</button>
+          </div>
+          <div class="day daylabel">Today</div>
+          <div class="newline" style="margin: 0 14px 4px"><span>New since you were here</span></div>
+          <div class="list">
+            <div class="r">
+              <span class="ic warn">!</span><span class="nm">Demo User</span
+              ><span class="op warn">conflict</span
+              ><span class="file">roadmap (conflicted copy — human — …).md</span
+              ><span class="time">3m</span>
+            </div>
+            <div class="r open" onclick="this.classList.toggle('open')">
+              <span class="ic agent">A</span><span class="nm">Demo User</span
+              ><span class="op">· via claude-code · made 7 changes</span><span class="chev">›</span
+              ><span class="time">14m</span>
+            </div>
+            <div class="sub">
+              <div class="r si"><span class="file">research/notes-1.md … +5 wrote</span></div>
+              <div class="r si">
+                <span class="file" style="color: var(--warning-strong)"
+                  >conflict · README (conflicted copy — agent — …).md</span
+                >
+              </div>
+            </div>
+            <div class="r" onclick="this.classList.toggle('open')">
+              <span class="ic human">DU</span><span class="nm">Demo User</span
+              ><span class="op">wrote 2 files</span><span class="chev">›</span
+              ><span class="time">14m</span>
+            </div>
+            <div class="sub">
+              <div class="r si"><span class="file">README.md, roadmap.md</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ V4 INBOX ============ -->
+      <section class="panel v4" data-v="v4" aria-label="Inbox variation">
+        <div class="feedcard">
+          <div class="feedhead">
+            <div class="crumb">
+              Demo Workspace · <b>Activity</b> · <span style="color: var(--accent)">8 new</span>
+            </div>
+            <button class="mark">Mark all seen</button>
+          </div>
+          <div class="seclabel" style="color: var(--accent)">New since you were here</div>
+          <div class="item warn unread">
+            <div class="av human" style="width: 38px; height: 38px; font-size: 12px">DU</div>
+            <div style="flex: 1">
+              <div class="name">Demo User <span class="tag warn">conflict</span></div>
+              <div class="meta">created a conflicted copy · v1 · 3m ago</div>
+              <div class="meta">
+                <span class="file">roadmap (conflicted copy — human — …).md</span>
+              </div>
+            </div>
+            <div class="dotnew"></div>
+          </div>
+          <div class="item unread open" onclick="this.classList.toggle('open')">
+            <div class="av agent" style="width: 38px; height: 38px; font-size: 12px">DU</div>
+            <div style="flex: 1">
+              <div class="name">Demo User <span class="tag agent">via claude-code</span></div>
+              <div class="meta">made 7 changes · 14m ago <span class="chev">›</span></div>
+              <div class="sub">
+                <div class="si"><span class="file">research/notes-1.md … +5 wrote</span></div>
+                <div class="si">
+                  <span class="file" style="color: var(--warning-strong)"
+                    >conflict · README (conflicted copy — agent — …).md</span
+                  >
+                </div>
+              </div>
+            </div>
+            <div class="dotnew"></div>
+          </div>
+          <div class="seclabel">Earlier today</div>
+          <div class="item" onclick="this.classList.toggle('open')">
+            <div class="av human" style="width: 38px; height: 38px; font-size: 12px">DU</div>
+            <div style="flex: 1">
+              <div class="name">Demo User</div>
+              <div class="meta">wrote 2 files · 14m ago <span class="chev">›</span></div>
+              <div class="sub">
+                <div class="si"><span class="file">README.md, roadmap.md</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ shared: glance drawer + badge (restyles per variation via tokens) ============ -->
+      <aside>
+        <div style="font-size: 12px; color: var(--fg-subtle); margin: 2px 4px 10px">
+          Top-bar badge &amp; glance drawer
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; margin: 0 4px 14px">
+          <button class="iconbtn" style="position: relative">
+            ⟳
+            <span
+              style="
+                position: absolute;
+                top: -5px;
+                right: -5px;
+                background: var(--accent);
+                color: var(--accent-fg);
+                font-size: 10px;
+                font-weight: 600;
+                border-radius: 99px;
+                padding: 0 5px;
+                line-height: 16px;
+              "
+              >8</span
+            >
+          </button>
+          <span style="font-size: 12.5px; color: var(--fg-muted)">the unread badge → opens ↓</span>
+        </div>
+        <div class="drawer">
+          <div class="dh"><b>Activity</b><span class="count">8 new</span></div>
+          <div style="padding: 12px 14px">
+            <div class="newline"><span>New since you were here</span></div>
+            <div style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 0">
+              <div class="av human" style="width: 30px; height: 30px; font-size: 11px">DU</div>
+              <div>
+                <div style="font-size: 13px; font-weight: 500">
+                  Demo User <span class="tag warn">conflict</span>
+                </div>
+                <div style="font-size: 12px; color: var(--fg-subtle)">
+                  roadmap (conflicted copy…) · 3m
+                </div>
+              </div>
+            </div>
+            <div
+              style="
+                display: flex;
+                gap: 10px;
+                align-items: flex-start;
+                padding: 8px 0;
+                border-top: 1px solid var(--border);
+              "
+            >
+              <div class="av agent" style="width: 30px; height: 30px; font-size: 11px">DU</div>
+              <div>
+                <div style="font-size: 13px; font-weight: 500">
+                  Demo User · <span style="color: var(--agent-strong)">claude-code</span>
+                </div>
+                <div style="font-size: 12px; color: var(--fg-subtle)">made 7 changes · 14m</div>
+              </div>
+            </div>
+            <div
+              style="
+                display: flex;
+                gap: 10px;
+                align-items: flex-start;
+                padding: 8px 0;
+                border-top: 1px solid var(--border);
+              "
+            >
+              <div class="av human" style="width: 30px; height: 30px; font-size: 11px">DU</div>
+              <div>
+                <div style="font-size: 13px; font-weight: 500">Demo User</div>
+                <div style="font-size: 12px; color: var(--fg-subtle)">wrote 2 files · 14m</div>
+              </div>
+            </div>
+          </div>
+          <div class="df"><a href="#">See all activity →</a></div>
+        </div>
+      </aside>
+
+      <div class="note">
+        <b>Note:</b> these are throwaway mockups to choose a direction — not wired into the real
+        components. The drawer/badge on the right use the same tokens, so they'll inherit whichever
+        full-view style you pick. Click a cluster to expand it; toggle light/dark with the ☾ button.
+      </div>
+    </div>
+
+    <script>
+      const tabs = [...document.querySelectorAll(".seg button")];
+      const panels = [...document.querySelectorAll(".panel")];
+      tabs.forEach((t) =>
+        t.addEventListener("click", () => {
+          tabs.forEach((x) => x.setAttribute("aria-selected", x === t));
+          const v = t.dataset.v;
+          panels.forEach((p) => p.classList.toggle("active", p.dataset.v === v));
+        }),
+      );
+      const root = document.documentElement,
+        tb = document.getElementById("theme");
+      tb.addEventListener("click", () => {
+        const dark = root.getAttribute("data-theme") === "dark";
+        root.setAttribute("data-theme", dark ? "light" : "dark");
+        tb.textContent = dark ? "☾" : "☀";
+      });
+    </script>
+  </body>
+</html>

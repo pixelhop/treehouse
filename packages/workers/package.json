@@ -1,0 +1,24 @@
+{
+  "name": "workers",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "scripts": {
+    "build": "nitro build",
+    "dev": "nitro dev --port 3040",
+    "preview": "node .output/server/index.mjs",
+    "typecheck": "tsc --noEmit",
+    "postinstall": "nitro prepare"
+  },
+  "dependencies": {
+    "@bull-board/api": "^9.10.4",
+    "@bull-board/h3": "^9.10.4",
+    "bullmq": "^6.3.12",
+    "db": "workspace:*",
+    "ioredis": "^6.0.0"
+  },
+  "devDependencies": {
+    "h3": "^1.15.11",
+    "nitropack": "^2.13.4",
+    "typescript": "^6.0.3"
+  }
+}

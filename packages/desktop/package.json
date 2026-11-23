@@ -1,0 +1,29 @@
+{
+  "name": "desktop",
+  "version": "0.1.11",
+  "private": true,
+  "description": "Treehouse — a magically-synced shared folder on your Mac.",
+  "license": "AGPL-3.0-only",
+  "author": "Treehouse",
+  "type": "module",
+  "main": "dist/main.cjs",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "icon": "node scripts/make-icon.mjs",
+    "dev": "node scripts/build.mjs && electron dist/main.cjs",
+    "package": "node scripts/build.mjs && electron-builder --mac",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "posthog-node": "5.21.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "cli": "workspace:*",
+    "electron": "45.1.0",
+    "electron-builder": "^26.18.1",
+    "electron-updater": "^6.8.12",
+    "esbuild": "^0.28.2",
+    "typescript": "^6.0.3"
+  }
+}
