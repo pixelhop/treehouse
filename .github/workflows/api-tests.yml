@@ -18,6 +18,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   api:
     runs-on: blacksmith-4vcpu-ubuntu-2404

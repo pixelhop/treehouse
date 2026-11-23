@@ -5,6 +5,10 @@ on:
   push:
     branches: [main]
 
+# Read-only by default; the health job below asks for what it needs to comment.
+permissions:
+  contents: read
+
 concurrency:
   # Cancel superseded runs on a PR, but never cancel in-progress runs on main.
   group: ${{ github.workflow }}-${{ github.ref }}
