@@ -208,6 +208,29 @@ export default defineNuxtConfig({
           content:
             "Treehouse is a shared file workspace where humans and agents build, ship, and grow together.",
         },
+        // Social preview card for every page. The marketing pages are
+        // client-rendered and link unfurlers don't run JS, so these must be in
+        // the static head. Docs and landing pages override the title,
+        // description and URL (composables/docs.ts) and inherit the image.
+        // Source: scripts/og-image/og.html.
+        { property: "og:site_name", content: "Treehouse" },
+        { property: "og:type", content: "website" },
+        { property: "og:url", content: `${siteUrl}/` },
+        { property: "og:title", content: "Treehouse — A home for humans and agents" },
+        {
+          property: "og:description",
+          content:
+            "Treehouse is a shared file workspace where humans and agents build, ship, and grow together.",
+        },
+        { property: "og:image", content: `${siteUrl}/og.png` },
+        { property: "og:image:width", content: "1200" },
+        { property: "og:image:height", content: "630" },
+        {
+          property: "og:image:alt",
+          content: "Treehouse: your team's second brain, open to everyone",
+        },
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:image", content: `${siteUrl}/og.png` },
       ],
       link: [{ rel: "icon", type: "image/svg+xml", href: "/favicon.svg" }],
     },

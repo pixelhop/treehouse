@@ -41,7 +41,6 @@ export function useDocsHead(page: {
     { property: "og:type", content: "article" },
     { property: "og:url", content: canonical },
     { property: "og:site_name", content: "Treehouse" },
-    { name: "twitter:card", content: "summary" },
   ];
   if (page.updated) {
     meta.push({ property: "article:modified_time", content: page.updated });

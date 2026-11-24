@@ -271,6 +271,12 @@ const ASPECT_NOTE = {
   "16:9": "Wide 16:9 landscape composition.",
 };
 
+function trimTrailingDots(s) {
+  let end = s.length;
+  while (end > 0 && s[end - 1] === ".") end--;
+  return s.slice(0, end);
+}
+
 /**
  * Compose a full prompt string from a render preset, a subject clause, and the
  * shared blocks. This is the canonical assembly order — keep it stable.
@@ -290,7 +296,7 @@ export function composePrompt({ subject, preset = "painterly", needs = [], aspec
   if (aspect && ASPECT_NOTE[aspect]) parts.push(ASPECT_NOTE[aspect]);
   parts.push(blocks.negatives);
   // Tidy: ensure single ". " joins, no double periods.
-  return parts.map((s) => s.trim().replace(/\.*$/, "")).join(". ") + ".";
+  return parts.map((s) => trimTrailingDots(s.trim())).join(". ") + ".";
 }
 
 /**
