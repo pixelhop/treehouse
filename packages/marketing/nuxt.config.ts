@@ -208,6 +208,7 @@ export default defineNuxtConfig({
         // Source: scripts/og-image/og.html.
         { property: "og:site_name", content: "Treehouse" },
         { property: "og:type", content: "website" },
+        { property: "og:url", content: `${siteUrl}/` },
         { property: "og:title", content: "Treehouse — A home for humans and agents" },
         {
           property: "og:description",
