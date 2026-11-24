@@ -59,6 +59,11 @@ env:
   # cookie reach api.trytree.house with the app's checkout request.
   NUXT_PUBLIC_SIDEKICK_PROGRAMME: ${{ github.event_name != 'pull_request' && github.ref != 'refs/heads/staging' && 'treehouse' || '' }}
   NUXT_PUBLIC_SIDEKICK_COOKIE_DOMAIN: ${{ github.event_name != 'pull_request' && github.ref != 'refs/heads/staging' && '.trytree.house' || '' }}
+  # Plausible page counts on the marketing site and docs
+  # (packages/marketing/app/plugins/plausible.client.ts). Public: the id names
+  # the trytree.house site's script. Production only, like PostHog, so preview
+  # and staging visits are not counted as production traffic.
+  NUXT_PUBLIC_PLAUSIBLE_SCRIPT_ID: ${{ github.event_name != 'pull_request' && github.ref != 'refs/heads/staging' && 'pa-OirF1Eoh4Iqm7TJJE9RW2' || '' }}
   # Optional: source-map upload for readable stack traces. The app build no-ops
   # the upload without both values.
   POSTHOG_CLI_TOKEN: ${{ secrets.POSTHOG_CLI_TOKEN }}

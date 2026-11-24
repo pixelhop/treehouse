@@ -103,6 +103,13 @@ export default defineNuxtConfig({
         key: process.env.NUXT_PUBLIC_POSTHOG_KEY || "",
         host: process.env.NUXT_PUBLIC_POSTHOG_HOST || "/ph",
       },
+      // Plausible page counts (plugins/plausible.client.ts). Unset = nothing
+      // loaded — the default for local dev, CI and PR previews. The script and
+      // its events go through our own /pv proxy (server/routes/pv/), not
+      // plausible.io, for the same reason PostHog does.
+      plausible: {
+        scriptId: process.env.NUXT_PUBLIC_PLAUSIBLE_SCRIPT_ID || "",
+      },
       // Sidekick, Pixelhop's affiliate programme (plugins/sidekick.client.ts).
       // No programme = no script, no footer link: the default for local dev,
       // CI and PR previews. Production sets the programme slug and the cookie

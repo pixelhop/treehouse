@@ -1,19 +1,11 @@
-import {
-  defineEventHandler,
-  getRequestHeaders,
-  getRequestIP,
-  getRequestURL,
-  readRawBody,
-  setResponseHeader,
-  setResponseStatus,
-} from "h3";
+import { defineEventHandler, getRequestHeaders, getRequestIP, getRequestURL } from "h3";
 import {
   POSTHOG_API_HOST,
   POSTHOG_ASSET_HOST,
-  isForwardableResponseHeader,
   posthogUpstreamUrl,
   proxyRequestHeaders,
 } from "shared";
+import { relayToUpstream } from "../../utils/proxy";
 
 /**
  * /ph/** — reverse proxy for PostHog.
@@ -32,7 +24,7 @@ import {
  * hostnames, the header policy and the cookie-stripping live in `shared` so the
  * marketing site's identical proxy cannot drift away from this one.
  */
-export default defineEventHandler(async (event) => {
+export default defineEventHandler((event) => {
   const path = (event.context.params?.path as string | undefined) ?? "";
   const search = getRequestURL(event).search ?? "";
   const target = posthogUpstreamUrl(path, search);
@@ -48,24 +40,6 @@ export default defineEventHandler(async (event) => {
     getRequestHeaders(event)["x-forwarded-for"] ?? getRequestIP(event),
   );
 
-  // Read the body as raw bytes, never as text. posthog-js gzips its event
-  // payloads; decoding to a string and re-encoding would corrupt them, and the
-  // resulting 400s from the ingestion endpoint are opaque to debug.
-  // `readRawBody(event, false)` yields a Node Buffer, whose backing store is
-  // typed as ArrayBufferLike; fetch's BodyInit requires a Uint8Array over a real
-  // ArrayBuffer. Copying into a fresh one satisfies that and costs nothing that
-  // matters here — PostHog event payloads are kilobytes, not megabytes.
-  const raw =
-    event.method === "GET" || event.method === "HEAD" ? undefined : await readRawBody(event, false);
-  const body = raw ? new Uint8Array(raw) : undefined;
-
-  const response = await fetch(target, { method: event.method, headers, body });
-
-  for (const [key, value] of response.headers.entries()) {
-    if (isForwardableResponseHeader(key)) setResponseHeader(event, key, value);
-  }
-  setResponseStatus(event, response.status);
-
-  // Hand back the bytes untouched, for the same reason we read them untouched.
-  return new Uint8Array(await response.arrayBuffer());
+  // Body and response are passed through as raw bytes (see relayToUpstream).
+  return relayToUpstream(event, target, headers);
 });

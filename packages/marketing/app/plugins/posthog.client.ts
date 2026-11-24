@@ -16,7 +16,8 @@
 // The cost of this strictness: a visitor who REJECTS is not counted at all, not
 // even anonymously in aggregate (which `cookieless_mode: "on_reject"` would have
 // allowed, but only by initialising). Losing that number is the honest price of
-// the banner saying what it means.
+// the banner saying what it means. Plausible (plugins/plausible.client.ts) is
+// what counts those visitors instead: cookieless, so it runs without the banner.
 //
 // Client-only (.client): posthog-js is browser-only and this is an SPA.
 import posthog from "posthog-js";
