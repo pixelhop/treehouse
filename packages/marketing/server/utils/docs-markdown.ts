@@ -62,6 +62,7 @@ const BLOCK_TAGS = new Set([
   "quick-links",
   "quick-link",
   "code-group",
+  "demo-video",
 ]);
 
 // Keep in step with the labels in app/components/content/Callout.vue.
@@ -299,6 +300,16 @@ function renderCallout(node: Element, ctx: DocsMarkdownContext): string {
   return quote(body ? `**${label}**\n\n${body}` : `**${label}**`);
 }
 
+/** A screen recording: its poster as an image, then a link to the video. */
+function renderDemoVideo(node: Element, ctx: DocsMarkdownContext): string {
+  const caption = prop(node, "caption") || "Screen recording";
+  const poster = absoluteHref(prop(node, "poster"), ctx);
+  const src = absoluteHref(prop(node, "src"), ctx);
+  return [poster && `![${caption}](${poster})`, src && `[Watch the video: ${caption}](${src})`]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 function renderQuickLinks(node: Element, ctx: DocsMarkdownContext): string {
   return children(node)
     .filter(isElement)
@@ -324,6 +335,7 @@ const BLOCK_RENDERERS: Record<string, Renderer> = {
   table: renderTable,
   hr: () => "---",
   callout: renderCallout,
+  "demo-video": renderDemoVideo,
   "quick-links": renderQuickLinks,
   "quick-link": renderQuickLink,
 };

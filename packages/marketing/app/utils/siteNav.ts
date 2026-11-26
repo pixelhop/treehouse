@@ -1,6 +1,5 @@
 // The marketing site's navigation: four things in the header, with everything
 // else one click down. Pure, so what each page offers is tested without Nuxt.
-import { isLandingPath } from "./landing";
 
 export interface SiteNavLink {
   label: string;
@@ -22,8 +21,6 @@ export function isNavGroup(entry: SiteNavEntry): entry is SiteNavGroup {
   return "links" in entry;
 }
 
-const OPEN_SOURCE_LABEL = "Open source";
-
 const PRODUCT: SiteNavGroup = {
   label: "Product",
   links: [
@@ -40,7 +37,7 @@ const PRODUCT: SiteNavGroup = {
       description: "MCP, REST and a folder they know",
     },
     { label: "Second brain", to: "/#second-brain", description: "Notes an agent keeps filed" },
-    { label: OPEN_SOURCE_LABEL, to: "/#open-source", description: "Down to the roots" },
+    { label: "Open source", to: "/#open-source", description: "Down to the roots" },
   ],
 };
 
@@ -70,22 +67,12 @@ const COMPARE: SiteNavGroup = {
 const PRICING: SiteNavLink = { label: "Pricing", to: "/#pricing" };
 const DOCS: SiteNavLink = { label: "Docs", to: "/docs" };
 
-const withoutOpenSource = (links: SiteNavLink[]) =>
-  links.filter((link) => link.label !== OPEN_SOURCE_LABEL);
-
-/**
- * The header for a page. Comparison pages and guides make no open-source claim
- * while the repo is private, so their navigation mustn't make one for them.
- */
-export function siteNavFor(path: string): SiteNavEntry[] {
-  const product = isLandingPath(path)
-    ? { ...PRODUCT, links: withoutOpenSource(PRODUCT.links) }
-    : PRODUCT;
-  return [product, COMPARE, PRICING, DOCS];
-}
+/** The site header: the same on every page. */
+export const SITE_NAV: SiteNavEntry[] = [PRODUCT, COMPARE, PRICING, DOCS];
 
 /** The footer's Product column: the same sections, plus Pricing. */
-export function footerProductFor(path: string): SiteNavLink[] {
-  const links = [...PRODUCT.links.slice(0, -1), PRICING, PRODUCT.links.at(-1)!];
-  return isLandingPath(path) ? withoutOpenSource(links) : links;
-}
+export const FOOTER_PRODUCT: SiteNavLink[] = [
+  ...PRODUCT.links.slice(0, -1),
+  PRICING,
+  PRODUCT.links.at(-1)!,
+];

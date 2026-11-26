@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { isLandingPath, signupHref } from "~/utils/landing";
-import { isNavGroup, siteNavFor } from "~/utils/siteNav";
+import { isNavGroup, SITE_NAV } from "~/utils/siteNav";
 
 const appUrl = useRuntimeConfig().public.appUrl;
 const signInUrl = `${appUrl}/sign-in`;
 
 const route = useRoute();
-const nav = computed(() => siteNavFor(route.path));
 
 // The header button counts as a signup from the page it's on.
 const signUpUrl = computed(() =>
@@ -30,7 +29,7 @@ watch(
           <BrandLockup :size="42" beta />
         </NuxtLink>
         <nav aria-label="Main" class="hidden items-center gap-7 text-sm font-semibold lg:flex">
-          <template v-for="entry in nav" :key="entry.label">
+          <template v-for="entry in SITE_NAV" :key="entry.label">
             <SiteNavMenu v-if="isNavGroup(entry)" :group="entry" />
             <NuxtLink v-else :to="entry.to" class="text-fg-muted transition-colors hover:text-fg">{{
               entry.label
@@ -86,7 +85,7 @@ watch(
     <SiteMobileNav
       v-show="menuOpen"
       id="mobile-nav"
-      :nav="nav"
+      :nav="SITE_NAV"
       :sign-in-url="signInUrl"
       @navigate="menuOpen = false"
     />

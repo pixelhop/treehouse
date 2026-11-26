@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import treehouseLogo from "design/assets/logo/treehouse.svg";
 import footerScene from "design/assets/raster/footer-meadow.webp";
-import { isLandingPath } from "~/utils/landing";
-import { footerProductFor } from "~/utils/siteNav";
+import { FOOTER_PRODUCT } from "~/utils/siteNav";
 import { sidekickJoinUrl, type SidekickConfig } from "~/plugins/sidekick.client";
 
 const GITHUB_URL = "https://github.com/pixelhop/treehouse";
@@ -15,28 +14,15 @@ const footerResources = [
   { label: "Agent handbook", to: "/docs/agents/handbook" },
   { label: "Compare Treehouse", to: "/compare" },
   { label: "Obsidian and Claude Code for teams", to: "/guides/obsidian-and-claude-code-for-teams" },
+  { label: "Self-hosted Obsidian sync", to: "/guides/self-hosted-obsidian-sync" },
+  { label: "Open-source Notion alternatives", to: "/guides/open-source-notion-alternatives" },
+  { label: "An AI second brain for teams", to: "/guides/ai-second-brain-for-teams" },
   { label: "GitHub", to: GITHUB_URL, external: true },
   { label: "Brand & design system", to: "/brand" },
   ...(affiliateJoinUrl
     ? [{ label: "Affiliate programme", to: affiliateJoinUrl, external: true }]
     : []),
 ];
-
-const route = useRoute();
-
-// Comparison pages and guides make no open-source claim while the repo is
-// private, so the chrome around them mustn't make one for them. That covers the
-// GitHub links too: they read as the same claim, and visitors can't open them.
-const onLanding = computed(() => isLandingPath(route.path));
-const footerProduct = computed(() => footerProductFor(route.path));
-const footerResourceLinks = computed(() =>
-  onLanding.value ? footerResources.filter((link) => link.label !== "GitHub") : footerResources,
-);
-const footerTagline = computed(() =>
-  onLanding.value
-    ? "A home for humans and agents — the shared file workspace."
-    : "A home for humans and agents — the open-source shared file workspace.",
-);
 </script>
 
 <template>
@@ -88,7 +74,7 @@ const footerTagline = computed(() =>
                 <BetaBadge class="ml-1" />
               </div>
               <p class="mt-3 max-w-xs text-sm leading-relaxed text-fg-muted">
-                {{ footerTagline }}
+                A home for humans and agents — the open-source shared file workspace.
               </p>
               <SiteGithubLink
                 class="mt-4 inline-flex rounded-full border border-border bg-surface p-2.5 text-fg-muted transition-colors hover:bg-mist hover:text-fg"
@@ -101,7 +87,7 @@ const footerTagline = computed(() =>
             <div>
               <h3 class="label-eyebrow mb-4">Product</h3>
               <ul class="space-y-2.5 text-sm font-semibold">
-                <li v-for="l in footerProduct" :key="l.label">
+                <li v-for="l in FOOTER_PRODUCT" :key="l.label">
                   <NuxtLink :to="l.to" class="text-fg-muted transition-colors hover:text-fg">{{
                     l.label
                   }}</NuxtLink>
@@ -113,7 +99,7 @@ const footerTagline = computed(() =>
             <div>
               <h3 class="label-eyebrow mb-4">Resources</h3>
               <ul class="space-y-2.5 text-sm font-semibold">
-                <li v-for="l in footerResourceLinks" :key="l.label">
+                <li v-for="l in footerResources" :key="l.label">
                   <a
                     v-if="l.external"
                     :href="l.to"

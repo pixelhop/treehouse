@@ -65,6 +65,10 @@ describe("renderDocsTwin", () => {
         ],
         ["pre", { language: "bash", filename: "terminal", code: "claude mcp add treehouse\n" }],
         ["p", {}, ["img", { src: "/docs/images/api-keys.webp", alt: "The API keys dialog" }]],
+        [
+          "demo-video",
+          { src: "/media/sync.mp4", poster: "/media/sync.webp", caption: "A file syncing" },
+        ],
       ),
     },
     PAGES,
@@ -80,6 +84,12 @@ describe("renderDocsTwin", () => {
     expect(twin).toContain("- [Agents](https://trytree.house/docs/agents): Connect agents.");
     expect(twin).toContain("**terminal**\n\n```bash\nclaude mcp add treehouse\n```");
     expect(twin).not.toMatch(/::|<callout|<quick-link/);
+  });
+
+  it("shows a video as its poster and a link", () => {
+    expect(twin).toContain(
+      "![A file syncing](https://trytree.house/media/sync.webp)\n\n[Watch the video: A file syncing](https://trytree.house/media/sync.mp4)",
+    );
   });
 
   it("makes links and images absolute", () => {

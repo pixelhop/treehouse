@@ -138,7 +138,7 @@ We retested links and tags on the web app on 30 October 2026, using the vault's 
 ## How to set it up
 
 1. **Turn off Obsidian Sync for this vault**, if you use it. Obsidian advises against running a third-party sync alongside it.
-2. **Make a workspace and connect your vault folder**, with the [desktop app](/docs/desktop/install-the-desktop-app) on an Apple silicon Mac or the [sync CLI](/docs/desktop/sync-with-the-cli) anywhere else. A new workspace adds `AGENTS.md` and `README.md` to the folder.
+2. **Make a workspace and connect your vault folder**, with the [desktop app](/docs/desktop/install-the-desktop-app) or the [sync CLI](/docs/desktop/sync-with-the-cli), both on Apple silicon Macs for now. A new workspace adds `AGENTS.md` and `README.md` to the folder.
 3. **[Invite your team](/docs/sharing/invite-people).** Each person syncs the workspace to a folder and opens it as a vault, or just uses the web app.
 4. **[Connect your agents](/docs/agents/connect/how-agents-work)**, each with its own key, so you can see what each one did.
 
