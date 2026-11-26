@@ -220,7 +220,7 @@ For agents, the parts that matter are included rather than sold as a tier:
 ::demo-video{src="/guides/media/undo-an-agent.mp4" poster="/guides/media/undo-an-agent.webp" caption="In Activity, an agent key's three changes are expanded, previewed and undone in one step."}
 ::
 
-One thing to be exact about: "plain files" describes what you and your agents work with. On the server, file contents sit in blob storage, encrypted at rest with a key you hold, and Postgres keeps the metadata, versions and change feed. The plain copy is the synced folder on each person's computer, which stays readable with or without Treehouse.
+One thing to be exact about: "plain files" describes what you and your agents work with. On the server, file contents sit in blob storage, encrypted at rest, and Postgres keeps the metadata, versions and change feed. Whoever runs the server holds the encryption key: Treehouse on the hosted service, you when you self-host. The plain copy is the synced folder on each person's computer, which stays readable with or without Treehouse.
 
 The [Notion comparison](/compare/notion) has the head-to-head, including measured read speeds and how undo differs. For a team knowledge base that agents keep filed, see [an AI second brain for teams](/guides/ai-second-brain-for-teams).
 

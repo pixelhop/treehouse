@@ -59,7 +59,9 @@ async function call(method, path, { body, key, headers = {}, raw = false } = {})
   if (res.status >= 400) {
     throw new Error(`${method} ${path}: HTTP ${res.status} ${text.slice(0, 300)}`);
   }
-  return { headers: res.headers, data: text ? JSON.parse(text) : null };
+  // File reads return the file itself; only API responses are JSON.
+  const json = res.headers.get("content-type")?.includes("application/json");
+  return { headers: res.headers, data: json && text ? JSON.parse(text) : text };
 }
 const enc = (p) => p.split("/").map(encodeURIComponent).join("/");
 const version = async (path, key) =>
