@@ -160,9 +160,10 @@ const scenes = {
   },
 
   async approve() {
-    const q = `select "userCode" from device_authorization where status='pending' order by "createdAt" desc limit 1`;
-    for (let i = 0; i < 240; i++) {
-      const code = execFileSync("docker", [
+    // Only approve a login started after this helper, so a code left pending by
+    // an earlier take can't be approved in its place.
+    const pending = () =>
+      execFileSync("docker", [
         "exec",
         "db-postgres-1",
         "psql",
@@ -171,10 +172,15 @@ const scenes = {
         "-d",
         DB,
         "-tAc",
-        q,
+        `select "userCode" from device_authorization where status='pending'`,
       ])
         .toString()
-        .trim();
+        .split("\n")
+        .map((code) => code.trim())
+        .filter(Boolean);
+    const earlier = new Set(pending());
+    for (let i = 0; i < 240; i++) {
+      const code = pending().find((candidate) => !earlier.has(candidate));
       if (code) {
         await sleep(2500); // long enough for the clip to show the waiting state
         await call("POST", "/api/device/approve", { body: { user_code: code, workspaceId: WS } });
@@ -182,7 +188,7 @@ const scenes = {
       }
       await sleep(500);
     }
-    throw new Error("No CLI login to approve");
+    throw new Error("No new CLI login to approve");
   },
 };
 
