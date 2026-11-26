@@ -1,5 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
+import { createServer } from "node:http";
+import { type AddressInfo, connect } from "node:net";
 import { readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -71,6 +73,64 @@ describe("spoolBodyCapped", () => {
     const spooled = await spoolBodyCapped(eventFor(new Uint8Array(0)).event, MIB, overflow);
     expect(spooled.size).toBe(0);
     expect((await collect(spooled.open())).byteLength).toBe(0);
+  });
+});
+
+/** An event whose request sends `before` bytes and then fails with `err`. */
+function failingEventFor(before: Uint8Array, err: Error) {
+  const req = (async function* () {
+    yield Buffer.from(before);
+    throw err;
+  })();
+  const res = { headersSent: false, setHeader: () => {} };
+  return { node: { req, res } } as unknown as H3Event;
+}
+
+function aborted(): Error {
+  return Object.assign(new Error("aborted"), { code: "ECONNRESET" });
+}
+
+describe("a client that hangs up mid-body", () => {
+  it("is a handled 499, not an unhandled error, and leaves no temp file", async () => {
+    const before = await spooledFiles();
+    const event = failingEventFor(new Uint8Array(randomBytes(5 * MIB)), aborted());
+    const err = await spoolBodyCapped(event, 10 * MIB, overflow).catch((e: unknown) => e);
+    expect(err).toMatchObject({ statusCode: 499, unhandled: false });
+    expect(await spooledFiles()).toEqual(before);
+  });
+
+  it("leaves any other read failure as it was", async () => {
+    const boom = new Error("disk on fire");
+    const event = failingEventFor(new Uint8Array(10), boom);
+    await expect(readBodyCapped(event, MIB, overflow)).rejects.toBe(boom);
+  });
+
+  it("is what a real socket closing part way through produces", async () => {
+    let seen: unknown;
+    const handled = new Promise<void>((resolve) => {
+      const server = createServer((req, res) => {
+        const event = { node: { req, res } } as unknown as H3Event;
+        spoolBodyCapped(event, 10 * MIB, overflow)
+          .then((b) => b.dispose())
+          .catch((e: unknown) => (seen = e))
+          .finally(() => {
+            server.close();
+            resolve();
+          });
+      });
+      server.listen(0, "127.0.0.1", () => {
+        const { port } = server.address() as AddressInfo;
+        const socket = connect(port, "127.0.0.1", () => {
+          socket.write(
+            `PUT /f HTTP/1.1\r\nHost: x\r\nContent-Length: ${2 * MIB}\r\n\r\n` + "a".repeat(1024),
+            () => setTimeout(() => socket.destroy(), 50),
+          );
+        });
+        socket.on("error", () => {});
+      });
+    });
+    await handled;
+    expect(seen).toMatchObject({ statusCode: 499 });
   });
 });
 

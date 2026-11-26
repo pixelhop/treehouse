@@ -3,7 +3,7 @@ import { createReadStream } from "node:fs";
 import { type FileHandle, mkdir, open, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { H3Event } from "h3";
+import { createError, type H3Event } from "h3";
 import { single } from "blob-io/byte-stream";
 import type { BlobSource } from "./storage";
 
@@ -48,15 +48,47 @@ async function* cappedChunks(
   onOverflow: (limit: number) => unknown,
 ): AsyncGenerator<Buffer> {
   let total = 0;
-  for await (const chunk of event.node.req) {
-    const buf = chunk as Buffer;
-    total += buf.length;
-    if (total > limit) {
-      if (!event.node.res.headersSent) event.node.res.setHeader("Connection", "close");
-      throw onOverflow(limit);
+  try {
+    for await (const chunk of event.node.req) {
+      const buf = chunk as Buffer;
+      total += buf.length;
+      if (total > limit) {
+        if (!event.node.res.headersSent) event.node.res.setHeader("Connection", "close");
+        throw onOverflow(limit);
+      }
+      yield buf;
     }
-    yield buf;
+  } catch (err) {
+    if (!isClientAbort(err)) throw err;
+    throw clientClosed(event, total);
   }
+}
+
+/**
+ * The client hung up part way through sending the body: Node rejects the read
+ * with `aborted` / ECONNRESET. Nothing failed on our side and nobody is left to
+ * answer, so this is reported as a handled 499 rather than escaping as an
+ * unhandled 500. An unhandled error is logged with its stack and the full
+ * request URL (which names the file) and reported as a server exception. For
+ * a sync client re-sending a large file that is still being written, that was
+ * most of the API's error logging.
+ */
+function isClientAbort(err: unknown): boolean {
+  return (err as NodeJS.ErrnoException | null)?.code === "ECONNRESET";
+}
+
+function clientClosed(event: H3Event, received: number) {
+  // One line, no path: enough to see that uploads are being cut off and how far
+  // they got, without putting file names in the logs.
+  const declared = event.node.req.headers?.["content-length"];
+  console.warn(
+    `[upload] client closed the request after ${received} bytes${declared ? ` of ${declared}` : ""}`,
+  );
+  return createError({
+    statusCode: 499,
+    statusMessage: "Client Closed Request",
+    data: { error: "client_closed" },
+  });
 }
 /**
  * Bodies up to this size stay in memory; larger ones spill to a temp file.
