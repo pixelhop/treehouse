@@ -3,6 +3,7 @@
  * .agent/docs/compare-pages.md. Most of what matters on these pages is what they
  * must not say, so the rules on claims live here rather than in a reviewer's head.
  */
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "vite-plus/test";
 import { docsPages, readDocsFiles } from "../../server/lib/docs-files";
 import { landingPrerenderRoutes, readLandingFiles } from "../../server/lib/landing-files";
@@ -41,20 +42,15 @@ function headingAnchors(body: string): Set<string> {
 
 /**
  * Sentences about Treehouse must not make these claims. Each has a reason:
- * the repo is still private, search and per-tier history held back by the owner, encryption
- * is at rest only, and the rest haven't reached main. Update this list when one
- * of them ships.
+ * search and per-tier history are held back by the owner, encryption is at rest
+ * only, and the trash retention period is still being confirmed. Update this list
+ * when one of them changes.
  */
 const BANNED_TREEHOUSE_CLAIMS: [string, RegExp][] = [
-  ["open source", /open[- ]source/i],
-  ["self-hosting", /self[- ]host/i],
   ["zero-knowledge", /zero[- ]knowledge/i],
   ["search", /\b(semantic|full[- ]text|fuzzy) search|search (your|across|every)/i],
   ["history retention", /(history|retention).{0,40}\b(days|tier|plan)\b/i],
   ["trash retention", /trash.{0,60}\b(forever|indefinitely|days)\b/i],
-  ["scoped keys", /(read-only|scoped|folder-limited) (api )?keys?/i],
-  ["viewer role", /viewer role/i],
-  ["folder grants", /folder grants?/i],
 ];
 
 describe("comparison pages and guides", () => {
@@ -64,7 +60,10 @@ describe("comparison pages and guides", () => {
       "/compare/fastio",
       "/compare/notion",
       "/compare/obsidian",
+      "/guides/ai-second-brain-for-teams",
       "/guides/obsidian-and-claude-code-for-teams",
+      "/guides/open-source-notion-alternatives",
+      "/guides/self-hosted-obsidian-sync",
     ]);
   });
 
@@ -122,7 +121,9 @@ describe("comparison pages and guides", () => {
     });
 
     it("links only to pages and anchors that exist", () => {
-      const links = [...file.body.matchAll(/\]\((\/[^)\s]+)\)/g)].map((match) => match[1] ?? "");
+      const links = [...file.body.matchAll(/(?<!!\[[^\]]*)\]\((\/[^)\s]+)\)/g)].map(
+        (match) => match[1] ?? "",
+      );
       const broken = links.filter((href) => {
         const [path = "", anchor] = href.split("#");
         if (!docsPaths.has(path) && !landingPaths.has(path)) return true;
@@ -130,6 +131,19 @@ describe("comparison pages and guides", () => {
         return Boolean(anchor && target && !headingAnchors(target.body).has(anchor));
       });
       expect(broken).toEqual([]);
+    });
+
+    it("embeds only images and videos that exist", () => {
+      const media = [
+        ...[...file.body.matchAll(/!\[[^\]]*\]\((\/[^)\s]+)\)/g)].map((match) => match[1] ?? ""),
+        ...[...file.body.matchAll(/::demo-video\{([^}]*)\}/g)].flatMap((match) =>
+          [...(match[1] ?? "").matchAll(/(?:src|poster)="([^"]+)"/g)].map((attr) => attr[1] ?? ""),
+        ),
+      ];
+      const missing = media.filter(
+        (src) => !existsSync(new URL(`../../public${src}`, import.meta.url)),
+      );
+      expect(missing).toEqual([]);
     });
   });
 });

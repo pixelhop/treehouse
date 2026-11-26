@@ -2,30 +2,25 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vite-plus/test";
 import { readLandingFiles } from "../server/lib/landing-files";
-import { footerProductFor, isNavGroup, siteNavFor, type SiteNavLink } from "../app/utils/siteNav";
+import { FOOTER_PRODUCT, isNavGroup, SITE_NAV, type SiteNavLink } from "../app/utils/siteNav";
 
 const homepage = readFileSync(
   fileURLToPath(new URL("../app/pages/index.vue", import.meta.url)),
   "utf8",
 );
 
-const allLinks = (path: string): SiteNavLink[] =>
-  siteNavFor(path).flatMap((entry) =>
+const allLinks = (): SiteNavLink[] =>
+  SITE_NAV.flatMap((entry) =>
     isNavGroup(entry) ? [...entry.links, ...(entry.footer ? [entry.footer] : [])] : [entry],
   );
 
-describe("siteNavFor", () => {
+describe("SITE_NAV", () => {
   it("keeps the header to four entries", () => {
-    expect(siteNavFor("/").map((entry) => entry.label)).toEqual([
-      "Product",
-      "Compare",
-      "Pricing",
-      "Docs",
-    ]);
+    expect(SITE_NAV.map((entry) => entry.label)).toEqual(["Product", "Compare", "Pricing", "Docs"]);
   });
 
   it("points every section link at a section the homepage has", () => {
-    const anchors = allLinks("/")
+    const anchors = allLinks()
       .map((link) => link.to)
       .filter((to) => to.startsWith("/#"));
     expect(anchors.length).toBeGreaterThan(0);
@@ -34,25 +29,21 @@ describe("siteNavFor", () => {
 
   it("points every comparison link at a page that exists", () => {
     const pages = new Set(["/compare", ...readLandingFiles().map((file) => file.path)]);
-    const links = allLinks("/")
+    const links = allLinks()
       .map((link) => link.to)
       .filter((to) => to.startsWith("/compare") || to.startsWith("/guides"));
     expect(links.length).toBeGreaterThan(0);
     for (const to of links) expect(pages).toContain(to);
   });
 
-  it("makes no open-source claim on comparison pages and guides", () => {
-    for (const path of ["/compare", "/compare/obsidian", "/guides/a-guide"]) {
-      expect(allLinks(path).map((link) => link.label)).not.toContain("Open source");
-      expect(footerProductFor(path).map((link) => link.label)).not.toContain("Open source");
-    }
-    expect(allLinks("/").map((link) => link.label)).toContain("Open source");
+  it("links to the open-source section", () => {
+    expect(allLinks().map((link) => link.label)).toContain("Open source");
   });
 });
 
-describe("footerProductFor", () => {
+describe("FOOTER_PRODUCT", () => {
   it("lists the product sections and pricing", () => {
-    expect(footerProductFor("/").map((link) => link.label)).toEqual([
+    expect(FOOTER_PRODUCT.map((link) => link.label)).toEqual([
       "How it works",
       "Features",
       "Sharing",

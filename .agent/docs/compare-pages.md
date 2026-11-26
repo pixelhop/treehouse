@@ -52,10 +52,13 @@ prices change**. Everywhere else reads them live from `/api/plans`.
 
 ## Rules on claims
 
-- **No open source or self-hosting claims** until the repo is public. The AGPL licence is on
-  `main`, but readers can't see the code yet. `layouts/default.vue`, `utils/siteNav.ts` and
-  `SiteGithubLink.vue` drop the site's own open-source links on these pages, so remove those
-  filters at the same time.
+- **Open source and self-hosting are true claims** now that the repo is public (AGPL-3.0-only,
+  since 23 November 2026), so these pages can make them and the site chrome shows its GitHub
+  links on them too. Be exact about self-hosting: describe the parts it takes (see
+  `/docs/self-hosting` and `DEPLOYMENT.md`), and don't call it a one-command install until
+  there is one.
+- **Say where sync runs.** The desktop app and CLI are for Apple silicon Macs today, and
+  there's no mobile app. Any page that sells syncing says so.
 - **Don't market search or per-tier history retention.** The owner has held them back.
 - **Encryption is protection at rest.** Never zero-knowledge.
 - **Only claim what's merged and live on `main`.** Check `gh pr view` rather than the plan.
@@ -63,10 +66,26 @@ prices change**. Everywhere else reads them live from `/api/plans`.
 - **No competitor logos.** Check the brand's terms first.
 
 When a feature ships, remove it from `BANNED_TREEHOUSE_CLAIMS` in the test and add it to the
-pages. Waiting at the time of writing: the Viewer role, scoped keys and folder grants. In the other
+pages. The Viewer role and read-only or folder-limited keys have shipped, so pages may now
+describe them as the docs do. In the other
 direction, re-check the Obsidian page's test table and "What doesn't work yet" in the guide
 whenever linking or sync changes. Those say what's true today, and they went stale once
 already when wikilinks shipped mid-draft.
+
+## Media
+
+Screenshots and short screen recordings make these pages. They come from a seeded local stack,
+never from a real workspace, so they can be retaken when the UI changes:
+
+- Screenshots are the docs ones in `public/docs/images/` (see
+  `scripts/docs-screenshots/README.md`). Embed them as Markdown images; the alt text is the
+  caption.
+- Videos live in `public/guides/media/` as an `.mp4` and a `.webp` poster, recorded with
+  `scripts/guide-media/` (its README lists each clip and how it was made). Embed one with
+  `::demo-video{src poster caption}`. It loops silently like a GIF while on screen, waits on its
+  poster with controls under reduced motion, and the `.md` twin shows the poster and a link.
+- Keep a clip short (15 to 25 seconds), cropped to the part of the UI the paragraph is about,
+  and under about 300 KB. Retake it, or delete it, when the flow it shows changes.
 
 ## Measuring signups
 
