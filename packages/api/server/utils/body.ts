@@ -74,8 +74,7 @@ async function* cappedChunks(
  * most of the API's error logging.
  */
 function isClientAbort(err: unknown): boolean {
-  const code = (err as NodeJS.ErrnoException | null)?.code;
-  return code === "ECONNRESET" || code === "ERR_STREAM_PREMATURE_CLOSE";
+  return (err as NodeJS.ErrnoException | null)?.code === "ECONNRESET";
 }
 
 function clientClosed(event: H3Event, received: number) {
